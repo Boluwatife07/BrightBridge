@@ -2,13 +2,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @next/next/no-img-element */
 
 import { useState } from "react";
-import {
-  AccountRecord, AccountStatus, seedAccounts,
-  OnboardProvider, OnboardPartner, VerificationPanel, AccountsQueue, AccountReviewModal,
-} from "./accounts";
-
 type Role = "provider" | "partner" | "bbc";
-type View = "overview" | "accounts" | "requirements" | "properties" | "viewings" | "messages" | "settings";
+type View = "overview" | "requirements" | "properties" | "viewings" | "messages" | "settings";
 
 /* ---------------------------------------------------------------------------
    Documents
@@ -100,7 +95,6 @@ function docSummary(documents: DocItem[]) {
 
 const NAV: Record<View, { id: View; label: string; icon: string }> = {
   overview: { id: "overview", label: "Overview", icon: "⌂" },
-  accounts: { id: "accounts", label: "Accounts", icon: "☑" },
   requirements: { id: "requirements", label: "Requirements", icon: "▤" },
   properties: { id: "properties", label: "Properties", icon: "◇" },
   viewings: { id: "viewings", label: "Viewings", icon: "↗" },
@@ -108,27 +102,19 @@ const NAV: Record<View, { id: View; label: string; icon: string }> = {
   settings: { id: "settings", label: "Settings", icon: "⚙" },
 };
 
-/* An unverified account gets Overview and Messages only. This is where the
-   gatekeeper model either holds or leaks, so it is a hard block. */
-function navFor(role: Role, verified: boolean): { id: View; label: string; icon: string }[] {
+function navFor(role: Role): { id: View; label: string; icon: string }[] {
   const ids: View[] = role === "bbc"
-    ? ["overview", "accounts", "requirements", "properties", "viewings", "messages"]
-    : verified
     ? ["overview", "requirements", "properties", "viewings", "messages"]
-    : ["overview", "messages"];
+    : ["overview", "requirements", "properties", "viewings", "messages"];
   return ids.map(id => NAV[id]);
 }
 
 export default function Home() {
   const [screen, setScreen] = useState<"landing" | "onboardProvider" | "onboardPartner" | "app">("landing");
-  const [accounts, setAccounts] = useState<AccountRecord[]>(seedAccounts);
-  const [myProviderId, setMyProviderId] = useState("ACC-101");
-  const [myPartnerId, setMyPartnerId] = useState("ACC-102");
-  const [reviewingAccount, setReviewingAccount] = useState<AccountRecord | null>(null);
   const [role, setRole] = useState<Role>("bbc");
   const [view, setView] = useState<View>("overview");
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState<"requirement" | "property" | "detail" | "upload" | "docRequest" | "viewingRequest" | "declineDates" | "passOn" | "account" | null>(null);
+  const [modal, setModal] = useState<"requirement" | "property" | "detail" | "upload" | "docRequest" | "viewingRequest" | "declineDates" | "passOn" | null>(null);
   const [toast, setToast] = useState("");
   const [requirements, setRequirements] = useState<RequirementRecord[]>(seedRequirements);
   const [properties, setProperties] = useState<PropertyRecord[]>(seedProperties);
@@ -143,13 +129,10 @@ export default function Home() {
   const [reqFilter, setReqFilter] = useState<"all" | "open" | "draft">("all");
   const [returnToReq, setReturnToReq] = useState(false);
 
-  const myAccount = role === "provider" ? accounts.find(a => a.id === myProviderId) : role === "partner" ? accounts.find(a => a.id === myPartnerId) : null;
-  const verified = role === "bbc" || myAccount?.status === "Verified";
-  const myName = role === "bbc" ? "BrightBridge" : (myAccount?.orgName || myAccount?.legalName || "your account");
+  const myName = role === "bbc" ? "BrightBridge" : role === "provider" ? "Willow Care Group" : "Kush Properties";
   const roleName = role === "bbc" ? "BrightBridge workspace" : role === "provider" ? "Care provider portal" : "Property partner portal";
   const heading = view === "overview" ? `Welcome back, ${myName.split(" ").slice(0, 2).join(" ")}` : NAV[view]?.label;
-  const navItems = navFor(role, !!verified);
-  const pendingAccounts = accounts.filter(a => ["Submitted", "Under review", "More information requested"].includes(a.status)).length;
+  const navItems = navFor(role);
   const bbcViewingsPending = viewings.filter(v => v.status === "Requested" || v.status === "Awaiting BrightBridge confirmation").length;
   const partnerViewingsPending = viewings.filter(v => v.status === "Shared with property source").length;
   const bbcDocRequests = properties.reduce((n, p) => n + p.documents.filter(d => d.state === "Requested").length, 0);
@@ -160,18 +143,6 @@ export default function Home() {
   function changeRole(next: Role) { setRole(next); setView("overview"); setModal(null); }
   function enterAppAs(next: Role) { setRole(next); setScreen("app"); setView("overview"); }
   function backToStart() { setScreen("landing"); setView("overview"); setModal(null); }
-
-  /* ---------------- accounts ---------------- */
-  function registerAccount(account: AccountRecord) {
-    setAccounts(prev => [account, ...prev]);
-    if (account.role === "provider") setMyProviderId(account.id); else setMyPartnerId(account.id);
-    enterAppAs(account.role);
-  }
-  function decideAccount(id: string, status: AccountStatus, note: string) {
-    setAccounts(prev => prev.map(a => a.id === id ? { ...a, status, reviewNote: note } : a));
-    setModal(null); setReviewingAccount(null);
-    notify(status === "Verified" ? "Account verified, they can now use the platform" : status === "Rejected" ? "Account rejected, the applicant has been told why" : "More information requested, the applicant has been emailed");
-  }
 
   /* ---------------- requirements ---------------- */
   function saveRequirement(fields: any, asDraft: boolean, existingId?: string) {
@@ -288,28 +259,25 @@ export default function Home() {
     <button className="text-button" style={{ marginTop: 36 }} onClick={() => enterAppAs("bbc")}>BrightBridge team, go to the internal workspace →</button>
   </div>;
 
-  if (screen === "onboardProvider") return <OnboardProvider onBack={() => setScreen("landing")} onSubmit={registerAccount}/>;
-  if (screen === "onboardPartner") return <OnboardPartner onBack={() => setScreen("landing")} onSubmit={registerAccount}/>;
+  if (screen === "onboardProvider") return <RegisterProvider onBack={() => setScreen("landing")} onDone={() => enterAppAs("provider")}/>;
+  if (screen === "onboardPartner") return <RegisterPartner onBack={() => setScreen("landing")} onDone={() => enterAppAs("partner")}/>;
 
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><img src="/brightbridge-logo.png" alt=""/><div><strong>BrightBridge</strong><span>Connect</span></div></div><div className="workspace-label">Workspace</div>
     <button className="role-switch" onClick={() => changeRole(role === "bbc" ? "provider" : role === "provider" ? "partner" : "bbc")}><span className="role-avatar">{role === "bbc" ? "BB" : myName.split(" ").map(x => x[0]).slice(0, 2).join("")}</span><span><b>{roleName}</b><small>Switch workspace (demo)</small></span><i>⌄</i></button>
     <nav>{navItems.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span>{item.icon}</span>{item.label}
-      {item.id === "accounts" && pendingAccounts > 0 && <em>{pendingAccounts}</em>}
       {item.id === "viewings" && role === "bbc" && bbcViewingsPending > 0 && <em>{bbcViewingsPending}</em>}
       {item.id === "properties" && role === "bbc" && bbcDocRequests > 0 && <em>{bbcDocRequests}</em>}
       {item.id === "viewings" && role === "partner" && partnerViewingsPending > 0 && <em>{partnerViewingsPending}</em>}</button>)}</nav>
     <div className="sidebar-bottom"><button onClick={() => setView("settings")} className={view === "settings" ? "active" : ""}><span>⚙</span>Settings</button><button onClick={backToStart}><span>⇠</span>Sign out</button><div className="help-card"><span>?</span><strong>Need some help?</strong><small>Talk to your BrightBridge contact</small><button onClick={() => setView("messages")}>Open messages</button></div></div></aside>
 
-    <main className="main"><header><div><p>{roleName}</p><h1>{heading}</h1></div><div className="header-actions">{verified && <label className="search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search"/></label>}<button className="notification" onClick={() => notify("You are all caught up")}>♢<i/></button><button className="avatar">{role === "bbc" ? "BB" : myName.split(" ").map(x => x[0]).slice(0, 2).join("")}</button></div></header>
+    <main className="main"><header><div><p>{roleName}</p><h1>{heading}</h1></div><div className="header-actions">{<label className="search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search"/></label>}<button className="notification" onClick={() => notify("You are all caught up")}>♢<i/></button><button className="avatar">{role === "bbc" ? "BB" : myName.split(" ").map(x => x[0]).slice(0, 2).join("")}</button></div></header>
 
-      {!verified && myAccount && view !== "messages" && <VerificationPanel account={myAccount} onSignOut={backToStart}/>}
-      {verified && view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => { setEditingReq(null); setModal("requirement"); }} openProperty={openProperty} notify={notify} onUpload={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
-      {verified && view === "accounts" && role === "bbc" && <AccountsQueue accounts={accounts} openAccount={(a: AccountRecord) => { setReviewingAccount(a); setModal("account"); }}/>}
-      {verified && view === "requirements" && <Requirements role={role} requirements={requirements} reqFilter={reqFilter} setReqFilter={setReqFilter} reqListFiltered={reqListFiltered} openDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }} create={() => { setEditingReq(null); setModal("requirement"); }} partnerSafeReq={partnerSafeReq}/>}
-      {verified && view === "properties" && <Properties role={role} items={filteredProps} requirements={requirements} openProperty={openProperty} add={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
-      {verified && view === "viewings" && <Viewings role={role} viewings={viewings} shareWithPartner={shareWithPartner} partnerPickDate={partnerPickDate} confirmViewing={confirmViewing} onDeclineDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("declineDates"); }} onNewDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("viewingRequest"); }} setView={setView}/>}
+      {view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => { setEditingReq(null); setModal("requirement"); }} openProperty={openProperty} notify={notify} onUpload={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
+      {view === "requirements" && <Requirements role={role} requirements={requirements} reqFilter={reqFilter} setReqFilter={setReqFilter} reqListFiltered={reqListFiltered} openDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }} create={() => { setEditingReq(null); setModal("requirement"); }} partnerSafeReq={partnerSafeReq}/>}
+      {view === "properties" && <Properties role={role} items={filteredProps} requirements={requirements} openProperty={openProperty} add={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
+      {view === "viewings" && <Viewings role={role} viewings={viewings} shareWithPartner={shareWithPartner} partnerPickDate={partnerPickDate} confirmViewing={confirmViewing} onDeclineDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("declineDates"); }} onNewDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("viewingRequest"); }} setView={setView}/>}
       {view === "messages" && <Messages role={role} myName={myName}/>}
-      {verified && view === "settings" && <Settings role={role} account={myAccount}/>}
+      {view === "settings" && <Settings role={role}/>}
     </main>
 
     {modal === "requirement" && <Modal title={editingReq ? `Edit ${editingReq.id}` : "New requirement"} onClose={() => { setModal(null); setEditingReq(null); }} wide>
@@ -351,8 +319,6 @@ export default function Home() {
     />}
 
     {modal === "upload" && <UploadWizard step={uploadStep} setStep={setUploadStep} forReq={requirements.find(r => r.id === uploadForReqId) || null} initial={editingProp} onCancel={() => { setModal(null); setEditingProp(null); }} onSubmit={(fields: any, docs: DocItem[], asDraft: boolean) => saveProperty(fields, docs, asDraft, uploadForReqId, editingProp?.id)}/>}
-
-    {modal === "account" && reviewingAccount && <AccountReviewModal account={accounts.find(a => a.id === reviewingAccount.id) || reviewingAccount} onClose={() => { setModal(null); setReviewingAccount(null); }} onDecide={decideAccount}/>}
 
     {toast && <div className="toast"><span>✓</span>{toast}</div>}</div>;
 }
@@ -627,30 +593,19 @@ function Messages({ role, myName }: any) {
   </div>;
 }
 
-function Settings({ role, account }: any) {
-  if (role === "bbc" || !account) return <div className="page-content settings"><section className="panel"><h2>Workspace</h2><p>Internal BrightBridge settings.</p><div className="form"><div className="field"><label>Organisation</label><input defaultValue="Bright Bridge Connect Ltd"/></div><div className="field"><label>Contact email</label><input defaultValue="hello@brightbridgeconnect.co.uk"/></div><div className="form-actions"><button className="primary">Save changes</button></div></div></section></div>;
+function Settings({ role }: any) {
+  if (role === "bbc") return <div className="page-content settings"><section className="panel"><h2>Workspace</h2><p>Internal BrightBridge settings.</p><div className="form"><div className="field"><label>Organisation</label><input defaultValue="Bright Bridge Connect Ltd"/></div><div className="field"><label>Contact email</label><input defaultValue="hello@brightbridgeconnect.co.uk"/></div><div className="form-actions"><button className="primary">Save changes</button></div></div></section></div>;
 
   return <div className="page-content settings">
     <section className="panel">
-      <h2>Your account</h2><p>Verified details are locked. Message BrightBridge if something needs to change.</p>
-      <div className="detail-grid" style={{ gridTemplateColumns: "repeat(2,1fr)", margin: "18px 0" }}>
-        <div><small>Account</small><strong>{account.orgName || account.legalName}</strong></div>
-        <div><small>Status</small><strong><Status tone="green">{account.status}</Status></strong></div>
-        <div><small>{account.companyNumber ? "Company number" : "Type"}</small><strong>{account.companyNumber || (account.entityType === "publicBody" ? "Local authority" : "Individual")}</strong></div>
-        <div><small>Verified on</small><strong>{account.submittedOn}</strong></div>
-      </div>
+      <h2>Your account</h2><p>Update your contact details and preferences.</p>
       <div className="form">
-        <div className="field"><label>Contact name</label><input defaultValue={account.contactName}/></div>
-        <div className="field"><label>Job title</label><input defaultValue={account.contactRole}/></div>
-        <div className="field"><label>Email</label><input defaultValue={account.email}/></div>
-        <div className="field"><label>Phone</label><input defaultValue={account.phone}/></div>
+        <div className="field"><label>Organisation</label><input defaultValue={role === "provider" ? "Willow Care Group" : "Kush Properties Ltd"}/></div>
+        <div className="field"><label>Contact name</label><input defaultValue={role === "provider" ? "Amara Nwosu" : "Kush Singh"}/></div>
+        <div className="field"><label>Email</label><input defaultValue={role === "provider" ? "amara@willowcare.co.uk" : "kush@openblock.co.uk"}/></div>
+        <div className="field"><label>Phone</label><input defaultValue="07700 900412"/></div>
         <div className="form-actions"><button className="primary">Save changes</button></div>
       </div>
-    </section>
-    <section className="panel" style={{ marginTop: 16, padding: 24 }}>
-      <h2>{role === "provider" ? "Services and coverage" : "Coverage"}</h2>
-      <p>{role === "provider" ? "What you deliver and where you need property." : "Where you source and what you can supply. Requirements outside these areas are not sent to you."}</p>
-      <div className="tag-row" style={{ marginTop: 14 }}>{[...(account.services || []), ...(account.propertyTypes || []), ...account.coverage].map((t: string) => <span key={t}>{t}</span>)}</div>
     </section>
   </div>;
 }
@@ -859,4 +814,79 @@ function UploadWizard({ step, setStep, forReq, initial, onCancel, onSubmit }: { 
       </div>
     </div>
   </div></div>;
+}
+
+/* ---------------------------------------------------------------------------
+   Registration: two short forms, straight into the dashboard
+--------------------------------------------------------------------------- */
+
+const LOCATIONS = ["Warrington", "St Helens", "Wider Cheshire", "Greater Manchester", "Yorkshire", "West Midlands", "Staffordshire", "North London", "North West"];
+const SERVICES = ["Supported living", "Children's home", "Residential care", "Semi independent (16 to 25)", "Temporary and emergency accommodation", "Housing management (RSL)", "Local authority commissioning"];
+const PARTNER_TYPES = ["Family home (2 to 3 bed)", "HMO (up to 6 bed)", "Larger format (7+ bed)", "Bungalow", "Self contained flats"];
+
+function Reg({ eyebrow, title, blurb, onBack, children }: any) {
+  return <div style={{ minHeight: "100vh", background: "#fff" }}>
+    <div style={{ padding: "16px 28px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 16 }}>
+      <span style={{ fontWeight: 800 }}>Bright<span style={{ color: "var(--purple)" }}>Bridge</span> Connect</span>
+      <span onClick={onBack} style={{ fontSize: 12, color: "var(--purple)", cursor: "pointer", fontWeight: 600 }}>← Back</span>
+    </div>
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "48px 20px" }}>
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--purple)", fontWeight: 700, marginBottom: 8 }}>{eyebrow}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 28, lineHeight: 1.6 }}>{blurb}</div>
+      {children}
+    </div>
+  </div>;
+}
+
+function RegChips({ options, selected, onToggle }: { options: string[]; selected: string[]; onToggle: (v: string) => void }) {
+  return <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+    {options.map(o => <span key={o} onClick={() => onToggle(o)} style={{ padding: "7px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer", border: `1px solid ${selected.includes(o) ? "var(--purple)" : "var(--line)"}`, background: selected.includes(o) ? "var(--purple-soft)" : "transparent", color: selected.includes(o) ? "var(--purple)" : "var(--muted)" }}>{o}</span>)}
+  </div>;
+}
+
+function RegisterProvider({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+  const [services, setServices] = useState<string[]>([]);
+  const [coverage, setCoverage] = useState<string[]>([]);
+  const toggle = (list: string[], setList: any, v: string) => setList(list.includes(v) ? list.filter((x: string) => x !== v) : [...list, v]);
+
+  return <Reg eyebrow="Care provider" title="Create your account" blurb="Tell us about your organisation so we can match you with the right properties." onBack={onBack}>
+    <form onSubmit={e => { e.preventDefault(); onDone(); }} className="form" style={{ padding: 0 }}>
+      <div className="field full"><label>Organisation name</label><input required placeholder="e.g. Willow Care Group"/></div>
+      <div className="field"><label>Contact name</label><input required placeholder="Full name"/></div>
+      <div className="field"><label>Job title</label><input placeholder="e.g. Head of Estates"/></div>
+      <div className="field"><label>Email</label><input required type="email" placeholder="you@organisation.co.uk"/></div>
+      <div className="field"><label>Phone</label><input required placeholder="07XXX XXXXXX"/></div>
+      <div className="field full"><label>Services you deliver</label>
+        <RegChips options={SERVICES} selected={services} onToggle={v => toggle(services, setServices, v)}/>
+      </div>
+      <div className="field full"><label>Where do you need properties?</label>
+        <RegChips options={LOCATIONS} selected={coverage} onToggle={v => toggle(coverage, setCoverage, v)}/>
+      </div>
+      <div className="form-actions"><button type="button" className="secondary" onClick={onBack}>Cancel</button><button className="primary" disabled={services.length === 0 || coverage.length === 0} style={{ opacity: services.length > 0 && coverage.length > 0 ? 1 : .4 }}>Create account</button></div>
+    </form>
+  </Reg>;
+}
+
+function RegisterPartner({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+  const [coverage, setCoverage] = useState<string[]>([]);
+  const [types, setTypes] = useState<string[]>([]);
+  const toggle = (list: string[], setList: any, v: string) => setList(list.includes(v) ? list.filter((x: string) => x !== v) : [...list, v]);
+
+  return <Reg eyebrow="Property partner" title="Create your account" blurb="Whether you own a single property or source across a region, the same account applies." onBack={onBack}>
+    <form onSubmit={e => { e.preventDefault(); onDone(); }} className="form" style={{ padding: 0 }}>
+      <div className="field full"><label>Your name</label><input required placeholder="Full name"/></div>
+      <div className="field"><label>Email</label><input required type="email" placeholder="you@email.com"/></div>
+      <div className="field"><label>Phone</label><input required placeholder="07XXX XXXXXX"/></div>
+      <div className="field full"><label>Company name</label><input placeholder="Leave blank if you are an individual landlord"/></div>
+      <div className="field full"><label>Where can you source properties?</label>
+        <p style={{ fontSize: 11, color: "var(--muted)", margin: "2px 0 6px" }}>Requirements are only sent to you for the areas you cover.</p>
+        <RegChips options={LOCATIONS} selected={coverage} onToggle={v => toggle(coverage, setCoverage, v)}/>
+      </div>
+      <div className="field full"><label>Property types you work with</label>
+        <RegChips options={PARTNER_TYPES} selected={types} onToggle={v => toggle(types, setTypes, v)}/>
+      </div>
+      <div className="form-actions"><button type="button" className="secondary" onClick={onBack}>Cancel</button><button className="primary" disabled={coverage.length === 0 || types.length === 0} style={{ opacity: coverage.length > 0 && types.length > 0 ? 1 : .4 }}>Create account</button></div>
+    </form>
+  </Reg>;
 }
