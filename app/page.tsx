@@ -17,9 +17,10 @@ const CERT_LABELS: Record<string, string> = {
 const REQUIRED_CERTS = ["eicr", "gasSafety", "epc", "fireRisk"];
 const emptyCerts = () => Object.fromEntries(Object.keys(CERT_LABELS).map(k => [k, false])) as Record<string, boolean>;
 
+type DocRequest = { id: string; certKey: string | null; label: string; kind: "view" | "obtain" | "custom"; status: "Requested" | "Shared" };
 type PropertyRecord = {
   id: string; name: string; area: string; propertyType: string; bedrooms: string | number; condition: string; rent: string; availableFrom: string;
-  status: string; matchedReq: string | null; certs: Record<string, boolean>; docRequests: string[];
+  status: string; matchedReq: string | null; certs: Record<string, boolean>; docRequests: DocRequest[];
 };
 type RequirementRecord = {
   id: string; title: string; area: string; serviceType: string; propertyType: string; bedrooms: string | number; budget: string; leaseLength: string; neededBy: string;
@@ -44,12 +45,11 @@ const seedProperties: PropertyRecord[] = [
 ];
 
 const seedViewings: ViewingRecord[] = [];
-
 let idCounter = 1000;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
 function Status({ children, tone = "purple" }: { children: React.ReactNode; tone?: "purple" | "green" | "amber" | "grey" | "red" }) { return <span className={`status ${tone}`}>{children}</span>; }
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) { return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" onMouseDown={e => e.stopPropagation()}><div className="modal-head"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div>{children}</div></div>; }
+function Modal({ title, children, onClose, wide }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) { return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" style={wide ? { width: "min(760px,100%)" } : undefined} onMouseDown={e => e.stopPropagation()}><div className="modal-head"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div>{children}</div></div>; }
 function certStatus(certs: Record<string, boolean>) { const n = REQUIRED_CERTS.filter(c => certs[c]).length; return `${n}/${REQUIRED_CERTS.length} required docs on file`; }
 
 const nav: { id: View; label: string; icon: string }[] = [
@@ -69,6 +69,8 @@ export default function Home() {
   const [viewings, setViewings] = useState<ViewingRecord[]>(seedViewings);
   const [selectedProp, setSelectedProp] = useState<PropertyRecord | null>(null);
   const [selectedReq, setSelectedReq] = useState<RequirementRecord | null>(null);
+  const [editingReq, setEditingReq] = useState<RequirementRecord | null>(null);
+  const [editingProp, setEditingProp] = useState<PropertyRecord | null>(null);
   const [uploadStep, setUploadStep] = useState(1);
   const [uploadForReqId, setUploadForReqId] = useState<string | null>(null);
 
@@ -79,24 +81,51 @@ export default function Home() {
   function notify(message: string) { setToast(message); setTimeout(() => setToast(""), 3200); }
   function changeRole(next: Role) { setRole(next); setView("overview"); setModal(null); }
 
-  function createRequirement(fields: any) {
-    const req: RequirementRecord = { id: nextId("REQ"), status: "Open", operator: "Willow Care Group", matchedPropertyIds: [], ...fields };
-    setRequirements(prev => [req, ...prev]);
-    notify(`${req.id} posted — every property partner has been notified`);
+  // ---- Requirements: full create / draft / edit / publish / withdraw ----
+  function saveRequirement(fields: any, asDraft: boolean, existingId?: string) {
+    if (existingId) {
+      setRequirements(prev => prev.map(r => r.id === existingId ? { ...r, ...fields, status: asDraft ? "Draft" : (r.status === "Draft" ? "Open" : r.status) } : r));
+      notify(asDraft ? "Draft updated" : "Requirement updated");
+    } else {
+      const req: RequirementRecord = { id: nextId("REQ"), status: asDraft ? "Draft" : "Open", operator: "Willow Care Group", matchedPropertyIds: [], ...fields };
+      setRequirements(prev => [req, ...prev]);
+      notify(asDraft ? "Saved as draft — not yet visible to property partners" : `${req.id} posted — every property partner has been notified`);
+    }
+    setModal(null); setEditingReq(null);
+  }
+  function publishRequirement(id: string) {
+    setRequirements(prev => prev.map(r => r.id === id ? { ...r, status: "Open" } : r));
+    notify("Requirement published — every property partner has been notified");
+    setModal(null);
+  }
+  function withdrawRequirement(id: string) {
+    setRequirements(prev => prev.map(r => r.id === id ? { ...r, status: "Withdrawn" } : r));
+    notify("Requirement withdrawn");
+    setModal(null);
   }
 
-  function createProperty(fields: any, certs: Record<string, boolean>, forReqId: string | null) {
-    const prop: PropertyRecord = { id: nextId("PROP"), status: "Submitted", matchedReq: null, certs, docRequests: [], ...fields };
-    setProperties(prev => [prop, ...prev]);
-    notify(forReqId ? `Property submitted against ${forReqId} — BBC will review within 10 business days` : "Property submitted — BBC will review within 10 business days");
+  // ---- Properties: full submit / draft / edit / withdraw ----
+  function saveProperty(fields: any, certs: Record<string, boolean>, asDraft: boolean, forReqId: string | null, existingId?: string) {
+    if (existingId) {
+      setProperties(prev => prev.map(p => p.id === existingId ? { ...p, ...fields, certs, status: asDraft ? "Draft" : (p.status === "Draft" ? "Submitted" : p.status) } : p));
+      notify(asDraft ? "Draft updated" : "Property updated and submitted to BBC");
+    } else {
+      const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", matchedReq: forReqId, certs, docRequests: [], ...fields };
+      setProperties(prev => [prop, ...prev]);
+      notify(asDraft ? "Saved as draft — not yet sent to BBC" : (forReqId ? `Property submitted against ${forReqId} — BBC will review within 10 business days` : "Property submitted — BBC will review within 10 business days"));
+    }
+    setModal(null); setEditingProp(null);
   }
-
+  function withdrawProperty(id: string) {
+    setProperties(prev => prev.map(p => p.id === id ? { ...p, status: "Withdrawn" } : p));
+    notify("Property withdrawn");
+    setModal(null);
+  }
   function decideProperty(id: string, decision: "Accepted" | "Declined") {
     setProperties(prev => prev.map(p => p.id === id ? { ...p, status: decision } : p));
     notify(decision === "Accepted" ? "Property accepted — ready to match to a requirement" : "Property declined");
     setModal(null);
   }
-
   function matchProperty(propId: string, reqId: string) {
     setProperties(prev => prev.map(p => p.id === propId ? { ...p, status: "Matched", matchedReq: reqId } : p));
     setRequirements(prev => prev.map(r => r.id === reqId ? { ...r, status: "Matched", matchedPropertyIds: [...r.matchedPropertyIds, propId] } : r));
@@ -104,10 +133,17 @@ export default function Home() {
     setModal(null);
   }
 
-  function requestDocs(prop: PropertyRecord, text: string) {
-    setProperties(prev => prev.map(p => p.id === prop.id ? { ...p, docRequests: [...p.docRequests, text] } : p));
-    notify("Document request sent to BrightBridge");
-    setModal(null);
+  // ---- Document requests: Provider sees what's on file, requests access per-document ----
+  function requestDoc(prop: PropertyRecord, certKey: string | null, label: string, kind: "view" | "obtain" | "custom") {
+    const reqObj: DocRequest = { id: nextId("DOCREQ"), certKey, label, kind, status: "Requested" };
+    setProperties(prev => prev.map(p => p.id === prop.id ? { ...p, docRequests: [...p.docRequests, reqObj] } : p));
+    setSelectedProp(prev => prev && prev.id === prop.id ? { ...prev, docRequests: [...prev.docRequests, reqObj] } : prev);
+    notify(kind === "view" ? `Request sent to view ${label}` : kind === "obtain" ? `Request sent to obtain ${label}` : "Document request sent to BrightBridge");
+  }
+  function shareDoc(propId: string, docReqId: string) {
+    setProperties(prev => prev.map(p => p.id === propId ? { ...p, docRequests: p.docRequests.map(d => d.id === docReqId ? { ...d, status: "Shared" } : d) } : p));
+    setSelectedProp(prev => prev && prev.id === propId ? { ...prev, docRequests: prev.docRequests.map(d => d.id === docReqId ? { ...d, status: "Shared" } : d) } : prev);
+    notify("Document shared with the care provider");
   }
 
   function requestViewing(prop: PropertyRecord, preferredDates: string) {
@@ -117,30 +153,17 @@ export default function Home() {
     notify("Viewing requested — BrightBridge will coordinate with the property source");
     setModal(null);
   }
-
-  function shareWithPartner(viewId: string) {
-    setViewings(prev => prev.map(v => v.id === viewId ? { ...v, status: "Shared with Property Source" } : v));
-    notify("Shared with the property source — awaiting their availability");
-  }
-
-  function partnerProposeDate(viewId: string, date: string) {
-    setViewings(prev => prev.map(v => v.id === viewId ? { ...v, partnerProposedDate: date, status: "Date Proposed" } : v));
-    notify("Date proposed — sent back to BrightBridge to confirm");
-  }
-
+  function shareWithPartner(viewId: string) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, status: "Shared with Property Source" } : v)); notify("Shared with the property source — awaiting their availability"); }
+  function partnerProposeDate(viewId: string, date: string) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, partnerProposedDate: date, status: "Date Proposed" } : v)); notify("Date proposed — sent back to BrightBridge to confirm"); }
   function confirmViewing(viewId: string) {
-    setViewings(prev => prev.map(v => {
-      if (v.id !== viewId) return v;
-      const confirmed = v.partnerProposedDate || "Date to be confirmed";
-      return { ...v, status: "Confirmed", confirmedDate: confirmed };
-    }));
+    setViewings(prev => prev.map(v => v.id === viewId ? { ...v, status: "Confirmed", confirmedDate: v.partnerProposedDate || "Date to be confirmed" } : v));
     const v = viewings.find(x => x.id === viewId);
     if (v) setProperties(prev => prev.map(p => p.id === v.propertyId ? { ...p, status: "Viewing Confirmed" } : p));
     notify("Viewing confirmed — all parties notified by email");
   }
 
   function partnerSafeReq(r: RequirementRecord) { const { operator, ...rest } = r; return rest; }
-  function providerSafeProperty(p: PropertyRecord) { return { id: p.id, name: p.name, area: p.area, propertyType: p.propertyType, bedrooms: p.bedrooms, condition: p.condition, rent: p.rent, availableFrom: p.availableFrom, status: p.status, matchedReq: p.matchedReq, docRequests: p.docRequests }; }
+  function providerSafeProperty(p: PropertyRecord) { return { id: p.id, name: p.name, area: p.area, propertyType: p.propertyType, bedrooms: p.bedrooms, condition: p.condition, rent: p.rent, availableFrom: p.availableFrom, status: p.status, matchedReq: p.matchedReq, docRequests: p.docRequests, certs: p.certs }; }
 
   const bbcViewingsPending = viewings.filter(v => v.status === "Requested").length;
   const partnerViewingsPending = viewings.filter(v => v.status === "Shared with Property Source").length;
@@ -151,16 +174,16 @@ export default function Home() {
     <div className="sidebar-bottom"><button onClick={() => setView("settings")} className={view === "settings" ? "active" : ""}><span>⚙</span>Settings</button><div className="help-card"><span>?</span><strong>Need some help?</strong><small>Visit the support centre</small><button onClick={() => notify("Support centre opened")}>Get support</button></div></div></aside>
     <main className="main"><header><div><p>{roleName}</p><h1>{heading}</h1></div><div className="header-actions"><label className="search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search platform"/></label><button className="notification" onClick={() => notify("You're all caught up")}>♢<i/></button><button className="avatar">{role === "bbc" ? "DA" : role === "provider" ? "WC" : "KP"}</button></div></header>
 
-      {view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => setModal("requirement")} openProperty={(p: PropertyRecord) => { setSelectedProp(p); setModal("property"); }} notify={notify} onUpload={() => { setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
-      {view === "requirements" && <Requirements role={role} requirements={requirements} openDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }} create={() => setModal("requirement")} partnerSafeReq={partnerSafeReq}/>}
-      {view === "properties" && <Properties role={role} items={filteredProps} openProperty={(p: PropertyRecord) => { setSelectedProp(p); setModal("property"); }} add={() => { setUploadForReqId(null); setUploadStep(1); setModal("upload"); }} providerSafeProperty={providerSafeProperty}/>}
+      {view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => { setEditingReq(null); setModal("requirement"); }} openProperty={(p: PropertyRecord) => { setSelectedProp(p); setModal("property"); }} notify={notify} onUpload={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
+      {view === "requirements" && <Requirements role={role} requirements={requirements} openDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }} create={() => { setEditingReq(null); setModal("requirement"); }} partnerSafeReq={partnerSafeReq}/>}
+      {view === "properties" && <Properties role={role} items={filteredProps} openProperty={(p: PropertyRecord) => { setSelectedProp(p); setModal("property"); }} add={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }} providerSafeProperty={providerSafeProperty}/>}
       {view === "viewings" && <Viewings role={role} viewings={viewings} shareWithPartner={shareWithPartner} partnerProposeDate={partnerProposeDate} confirmViewing={confirmViewing} notify={notify}/>}
       {view === "messages" && <Messages role={role}/>}
       {view === "settings" && <Settings role={role}/>}
     </main>
 
-    {modal === "requirement" && <Modal title="Post a property requirement" onClose={() => setModal(null)}>
-      <RequirementForm onCancel={() => setModal(null)} onSubmit={(fields: any) => { createRequirement(fields); setModal(null); }}/>
+    {modal === "requirement" && <Modal title={editingReq ? `Edit ${editingReq.id}` : "Post a property requirement"} onClose={() => { setModal(null); setEditingReq(null); }}>
+      <RequirementForm initial={editingReq} onCancel={() => { setModal(null); setEditingReq(null); }} onSubmit={(fields: any, asDraft: boolean) => saveRequirement(fields, asDraft, editingReq?.id)}/>
     </Modal>}
 
     {modal === "property" && selectedProp && <PropertyModal role={role} prop={selectedProp} requirements={requirements}
@@ -168,26 +191,30 @@ export default function Home() {
       onDecide={decideProperty}
       onMatch={matchProperty}
       onRequestDocs={() => setModal("docRequest")}
+      onRequestDoc={requestDoc}
+      onShareDoc={shareDoc}
       onRequestViewing={() => setModal("viewingRequest")}
+      onEdit={() => { setEditingProp(selectedProp); setUploadForReqId(selectedProp.matchedReq); setUploadStep(1); setModal("upload"); }}
+      onWithdraw={() => withdrawProperty(selectedProp.id)}
     />}
 
-    {modal === "docRequest" && selectedProp && <Modal title="Request additional documentation" onClose={() => setModal("property")}>
-      <DocRequestForm onCancel={() => setModal("property")} onSubmit={(text: string) => requestDocs(selectedProp, text)}/>
+    {modal === "docRequest" && selectedProp && <Modal title="Request something else" onClose={() => setModal("property")}>
+      <DocRequestForm onCancel={() => setModal("property")} onSubmit={(text: string) => { requestDoc(selectedProp, null, text, "custom"); setModal("property"); }}/>
     </Modal>}
 
     {modal === "viewingRequest" && selectedProp && <Modal title="Request a viewing" onClose={() => setModal("property")}>
       <ViewingRequestForm onCancel={() => setModal("property")} onSubmit={(dates: string) => requestViewing(selectedProp, dates)}/>
     </Modal>}
 
-    {modal === "detail" && selectedReq && <Modal title={`${selectedReq.id} · Requirement`} onClose={() => setModal(null)}>
-      <div className="requirement-detail"><Status tone={selectedReq.status === "Open" ? "grey" : "purple"}>{selectedReq.status}{selectedReq.matchedPropertyIds?.length ? ` · ${selectedReq.matchedPropertyIds.length} matched` : " · accepting properties"}</Status><h2>{selectedReq.title}</h2>
-      <p>{role === "partner" ? "A care provider is seeking a long-term property matching this brief." : `${selectedReq.operator ?? "A care provider"} is seeking a long-term property for this brief.`}</p>
-      <div className="detail-grid"><div><small>Location</small><strong>{selectedReq.area}</strong></div><div><small>Budget</small><strong>{selectedReq.budget}</strong></div><div><small>Needed by</small><strong>{selectedReq.neededBy}</strong></div><div><small>Lease</small><strong>{selectedReq.leaseLength}</strong></div></div>
-      <h3>Essential requirements</h3><div className="tag-row"><span>{selectedReq.bedrooms} bedrooms</span><span>{selectedReq.propertyType}</span><span>{selectedReq.serviceType}</span></div></div>
-      <div className="form-actions"><button className="secondary" onClick={() => setModal(null)}>Close</button>{role === "partner" && selectedReq.status === "Open" && <button className="primary" onClick={() => { setUploadForReqId(selectedReq.id); setUploadStep(1); setModal("upload"); }}>Submit a matching property</button>}</div>
-    </Modal>}
+    {modal === "detail" && selectedReq && <RequirementDetailModal role={role} req={selectedReq}
+      onClose={() => setModal(null)}
+      onEdit={() => { setEditingReq(selectedReq); setModal("requirement"); }}
+      onPublish={() => publishRequirement(selectedReq.id)}
+      onWithdraw={() => withdrawRequirement(selectedReq.id)}
+      onSubmitProperty={() => { setEditingProp(null); setUploadForReqId(selectedReq.id); setUploadStep(1); setModal("upload"); }}
+    />}
 
-    {modal === "upload" && <UploadWizard step={uploadStep} setStep={setUploadStep} forReqId={uploadForReqId} onCancel={() => setModal(null)} onSubmit={(fields: any, certs: any) => { createProperty(fields, certs, uploadForReqId); setModal(null); }}/>}
+    {modal === "upload" && <UploadWizard step={uploadStep} setStep={setUploadStep} forReqId={uploadForReqId} initial={editingProp} onCancel={() => { setModal(null); setEditingProp(null); }} onSubmit={(fields: any, certs: any, asDraft: boolean) => saveProperty(fields, certs, asDraft, uploadForReqId, editingProp?.id)}/>}
 
     {toast && <div className="toast"><span>✓</span>{toast}</div>}</div>;
 }
@@ -202,57 +229,93 @@ function Overview({ role, setView, requirements, properties, viewings, openRequi
   const stats = isBBC
     ? [["Open requirements", String(openReqs), "Notified to all partners"], ["Properties awaiting review", String(underReview), "Needs a decision"], ["Viewings to coordinate", String(pendingViewings), "Needs action"], ["Properties accepted", String(accepted), "Ready or matched"]]
     : role === "provider"
-    ? [["Requirements posted", String(requirements.length), "By your organisation"], ["Matched properties", String(providerVisible.length), "Awaiting your review"], ["Viewings requested", String(viewings.filter((v: ViewingRecord) => v.status !== "Confirmed").length), "In progress"], ["Viewings confirmed", String(viewings.filter((v: ViewingRecord) => v.status === "Confirmed").length), "Scheduled"]]
-    : [["Properties submitted", String(properties.length), `${underReview} under review`], ["Accepted", String(accepted), "Ready or matched"], ["Viewing requests for you", String(viewings.filter((v: ViewingRecord) => v.status === "Shared with Property Source").length), "Needs your availability"], ["Fees earned", "£750", "Lifetime"]];
-  const visibleReqs = role === "partner" ? requirements.map(({ operator, ...r }: RequirementRecord) => r) : requirements;
-  const visibleProps = role === "provider" ? providerVisible : properties;
+    ? [["Requirements posted", String(requirements.filter((r: RequirementRecord) => r.status !== "Withdrawn").length), "Including drafts"], ["Matched properties", String(providerVisible.length), "Awaiting your review"], ["Viewings requested", String(viewings.filter((v: ViewingRecord) => v.status !== "Confirmed").length), "In progress"], ["Viewings confirmed", String(viewings.filter((v: ViewingRecord) => v.status === "Confirmed").length), "Scheduled"]]
+    : [["Properties submitted", String(properties.filter((p: PropertyRecord) => p.status !== "Withdrawn" && p.status !== "Draft").length), `${underReview} under review`], ["Accepted", String(accepted), "Ready or matched"], ["Viewing requests for you", String(viewings.filter((v: ViewingRecord) => v.status === "Shared with Property Source").length), "Needs your availability"], ["Fees earned", "£750", "Lifetime"]];
+  const visibleReqs = role === "partner" ? requirements.filter((r: RequirementRecord) => r.status === "Open").map(({ operator, ...r }: RequirementRecord) => r) : requirements.filter((r: RequirementRecord) => r.status !== "Withdrawn");
+  const visibleProps = role === "provider" ? providerVisible : properties.filter((p: PropertyRecord) => p.status !== "Withdrawn");
 
-  return <div className="page-content"><section className="welcome"><p>{isBBC ? "Here's what's happening across the platform today." : role === "provider" ? "Properties are matched to your requirements as BBC finds them." : "New requirements are shared with you the moment they're posted."}</p><button className="primary" onClick={role === "provider" ? openRequirement : role === "partner" ? onUpload : () => notify("Use the Properties tab to review submissions")}><span>＋</span>{role === "provider" ? "Post requirement" : isBBC ? "Review properties" : "Submit property"}</button></section>
+  return <div className="page-content"><section className="welcome"><p>{isBBC ? "Here's what's happening across the platform today." : role === "provider" ? "Properties are matched to your requirements as BBC finds them." : "New requirements are shared with you the moment they're published."}</p><button className="primary" onClick={role === "provider" ? openRequirement : role === "partner" ? onUpload : () => notify("Use the Properties tab to review submissions")}><span>＋</span>{role === "provider" ? "Post requirement" : isBBC ? "Review properties" : "Submit property"}</button></section>
   <section className="stats-grid">{stats.map((s: string[], i: number) => <article key={s[0]}><div className="stat-icon">{["▤", "◇", "↗", "✓"][i]}</div><span>{s[0]}</span><strong>{s[1]}</strong><small>{s[2]}</small></article>)}</section>
   <div className="content-grid">
     <section className="panel"><div className="panel-head"><div><h2>{isBBC ? "Property review queue" : role === "provider" ? "Matched properties" : "Your recent submissions"}</h2><p>{isBBC ? "Review submissions before they can be matched" : role === "provider" ? "Properties BBC has matched to your requirements" : "Status of properties you've submitted"}</p></div><button className="text-button" onClick={() => setView("properties")}>View all →</button></div>
-      <div>{visibleProps.slice(0, 3).map((p: PropertyRecord) => <div className="property-row" key={p.id} onClick={() => openProperty(p)}><div className="building-thumb">⌂</div><div className="row-main"><strong>{p.name}</strong><span>{p.area} · {p.bedrooms} beds</span></div><div className="match"><b>{p.certs ? certStatus(p.certs).split("/")[0] : ""}</b><span>docs</span></div><Status tone={["Accepted", "Matched", "Viewing Confirmed"].includes(p.status) ? "green" : p.status === "Declined" ? "red" : "amber"}>{p.status}</Status>{isBBC && p.status === "Submitted" && <button className="mini-action" onClick={e => { e.stopPropagation(); openProperty(p); }}>Review</button>}</div>)}
+      <div>{visibleProps.slice(0, 3).map((p: PropertyRecord) => <div className="property-row" key={p.id} onClick={() => openProperty(p)}><div className="building-thumb">⌂</div><div className="row-main"><strong>{p.name}</strong><span>{p.area} · {p.bedrooms} beds</span></div><div className="match"><b>{p.certs ? certStatus(p.certs).split("/")[0] : ""}</b><span>docs</span></div><Status tone={["Accepted", "Matched", "Viewing Confirmed"].includes(p.status) ? "green" : p.status === "Declined" ? "red" : p.status === "Draft" ? "grey" : "amber"}>{p.status}</Status>{isBBC && p.status === "Submitted" && <button className="mini-action" onClick={e => { e.stopPropagation(); openProperty(p); }}>Review</button>}</div>)}
       {visibleProps.length === 0 && <div style={{ padding: 24, color: "var(--muted)", fontSize: 12 }}>Nothing to show yet.</div>}</div></section>
     <section className="panel"><div className="panel-head"><div><h2>Viewings</h2><p>Live coordination</p></div><button className="text-button" onClick={() => setView("viewings")}>View all →</button></div><div className="pipeline">{viewings.slice(0, 4).map((v: ViewingRecord, i: number) => <div key={v.id}><span className={`pipeline-dot dot-${i % 4}`}></span><div><strong>{v.propertyName}</strong><p>{v.status}</p><small>{v.confirmedDate || v.partnerProposedDate || v.proposedByProvider}</small></div></div>)}{viewings.length === 0 && <div style={{ padding: 20, color: "var(--muted)", fontSize: 11 }}>No viewings requested yet.</div>}</div></section>
   </div>
   <section className="panel"><div className="panel-head"><div><h2>{role === "partner" ? "Open requirements" : "Recent requirements"}</h2><p>{role === "partner" ? "Live care-sector demand — submit properties to fulfil them" : "Care needs currently looking for the right property"}</p></div><button className="text-button" onClick={() => setView("requirements")}>View all requirements →</button></div>
-  <div className="requirements-row">{visibleReqs.slice(0, 3).map((r: any) => <article key={r.id} onClick={() => setView("requirements")}><div><span>{r.propertyType}</span><Status tone={r.status === "Open" ? "grey" : "purple"}>{r.status}</Status></div><h3>{r.title}</h3><p>⌖ {r.area}</p><footer><strong>{r.budget}</strong><small>Needed by {r.neededBy}</small></footer></article>)}</div></section></div>;
+  <div className="requirements-row">{visibleReqs.slice(0, 3).map((r: any) => <article key={r.id} onClick={() => setView("requirements")}><div><span>{r.propertyType}</span><Status tone={r.status === "Open" ? "grey" : r.status === "Draft" ? "amber" : "purple"}>{r.status}</Status></div><h3>{r.title}</h3><p>⌖ {r.area}</p><footer><strong>{r.budget}</strong><small>Needed by {r.neededBy}</small></footer></article>)}</div></section></div>;
 }
 
 function Requirements({ role, requirements, openDetail, create, partnerSafeReq }: any) {
-  const list = role === "partner" ? requirements.map(partnerSafeReq) : requirements;
-  return <div className="page-content"><div className="page-toolbar"><p>{role === "partner" ? "Every requirement here is notified to you the moment it's posted — no BBC gatekeeping on this side." : "View, manage and match current care-provider requirements."}</p>{role === "provider" && <button className="primary" onClick={create}>＋ Post requirement</button>}</div>
-  <section className="panel"><div className="filterbar"><button className="selected">All requirements <b>{list.length}</b></button><button>Open <b>{list.filter((r: any) => r.status === "Open").length}</b></button></div>
+  const list = role === "partner" ? requirements.filter((r: RequirementRecord) => r.status === "Open").map(partnerSafeReq) : requirements.filter((r: RequirementRecord) => r.status !== "Withdrawn");
+  return <div className="page-content"><div className="page-toolbar"><p>{role === "partner" ? "Every open requirement here is notified to you the moment it's published — no BBC gatekeeping on this side." : "Manage your requirements — including drafts you haven't published yet."}</p>{role === "provider" && <button className="primary" onClick={create}>＋ Post requirement</button>}</div>
+  <section className="panel"><div className="filterbar"><button className="selected">All <b>{list.length}</b></button><button>Open <b>{list.filter((r: any) => r.status === "Open").length}</b></button>{role === "provider" && <button>Drafts <b>{list.filter((r: any) => r.status === "Draft").length}</b></button>}</div>
   <div className="data-table"><div className="table-header"><span>Requirement</span><span>Location</span><span>Budget</span><span>Status</span><span>Needed by</span></div>
-  {list.map((r: any, i: number) => <button className="data-row" key={i} onClick={() => openDetail(r)}><span><b>{r.title}</b><small>{r.id} · {r.serviceType}</small></span><span>{r.area}</span><span>{r.budget}</span><span><Status tone={r.status === "Open" ? "grey" : "purple"}>{r.status}</Status></span><span>{r.neededBy}　→</span></button>)}
+  {list.map((r: any, i: number) => <button className="data-row" key={i} onClick={() => openDetail(r)}><span><b>{r.title || "Untitled draft"}</b><small>{r.id} · {r.serviceType}</small></span><span>{r.area}</span><span>{r.budget}</span><span><Status tone={r.status === "Open" ? "grey" : r.status === "Draft" ? "amber" : "purple"}>{r.status}</Status></span><span>{r.neededBy}　→</span></button>)}
   {list.length === 0 && <div style={{ padding: 24, color: "var(--muted)", fontSize: 12 }}>No requirements yet.</div>}</div></section></div>;
 }
 
+function RequirementDetailModal({ role, req, onClose, onEdit, onPublish, onWithdraw, onSubmitProperty }: any) {
+  return <Modal title={`${req.id} · Requirement`} onClose={onClose}>
+    <div className="requirement-detail"><Status tone={req.status === "Open" ? "grey" : req.status === "Draft" ? "amber" : "purple"}>{req.status}{req.matchedPropertyIds?.length ? ` · ${req.matchedPropertyIds.length} matched` : ""}</Status><h2>{req.title || "Untitled draft"}</h2>
+    <p>{role === "partner" ? "A care provider is seeking a long-term property matching this brief." : `${req.operator ?? "A care provider"} is seeking a long-term property for this brief.`}</p>
+    <div className="detail-grid"><div><small>Location</small><strong>{req.area || "—"}</strong></div><div><small>Budget</small><strong>{req.budget || "—"}</strong></div><div><small>Needed by</small><strong>{req.neededBy || "—"}</strong></div><div><small>Lease</small><strong>{req.leaseLength || "—"}</strong></div></div>
+    <h3>Essential requirements</h3><div className="tag-row"><span>{req.bedrooms || "—"} bedrooms</span><span>{req.propertyType}</span><span>{req.serviceType}</span></div></div>
+    <div className="form-actions">
+      <button className="secondary" onClick={onClose}>Close</button>
+      {role === "provider" && req.status !== "Withdrawn" && <button className="secondary" onClick={onEdit}>Edit</button>}
+      {role === "provider" && req.status === "Draft" && <button className="primary" onClick={onPublish}>Publish</button>}
+      {role === "provider" && req.status === "Open" && <button className="secondary" onClick={onWithdraw} style={{ color: "#c23b3b" }}>Withdraw</button>}
+      {role === "partner" && req.status === "Open" && <button className="primary" onClick={onSubmitProperty}>Submit a matching property</button>}
+    </div>
+  </Modal>;
+}
+
 function Properties({ role, items, openProperty, add, providerSafeProperty }: any) {
-  const visible = role === "provider" ? items.filter((p: PropertyRecord) => ["Matched", "Viewing Requested", "Viewing Confirmed"].includes(p.status)).map(providerSafeProperty) : items;
-  return <div className="page-content"><div className="page-toolbar"><p>{role === "bbc" ? "Review, accept and match every submitted property." : role === "provider" ? "Properties BBC has matched to your requirements." : "Track your submitted properties and their review status."}</p>{role === "partner" && <button className="primary" onClick={add}>＋ Upload property</button>}</div>
-  <div className="property-cards">{visible.map((p: any) => <article key={p.id} onClick={() => openProperty(p)}><div className="property-image"><span>{p.certs ? certStatus(p.certs) : "Details on request"}</span><div>⌂</div></div><div className="card-content"><div><Status tone={["Accepted", "Matched", "Viewing Confirmed"].includes(p.status) ? "green" : p.status === "Declined" ? "red" : "amber"}>{p.status}</Status><small>{p.id}</small></div><h3>{p.name}</h3><p>{p.area}</p><div className="property-meta"><span><b>{p.bedrooms}</b> beds</span><span><b>{p.condition}</b></span><span><b>{p.rent}</b></span></div><button className="secondary">View property →</button></div></article>)}
+  const visible = role === "provider"
+    ? items.filter((p: PropertyRecord) => ["Matched", "Viewing Requested", "Viewing Confirmed"].includes(p.status)).map(providerSafeProperty)
+    : items.filter((p: PropertyRecord) => p.status !== "Withdrawn");
+  return <div className="page-content"><div className="page-toolbar"><p>{role === "bbc" ? "Review, accept and match every submitted property." : role === "provider" ? "Properties BBC has matched to your requirements." : "Track your submitted properties, including drafts."}</p>{role === "partner" && <button className="primary" onClick={add}>＋ Upload property</button>}</div>
+  <div className="property-cards">{visible.map((p: any) => <article key={p.id} onClick={() => openProperty(p)}><div className="property-image"><span>{p.certs ? certStatus(p.certs) : "Details on request"}</span><div>⌂</div></div><div className="card-content"><div><Status tone={["Accepted", "Matched", "Viewing Confirmed"].includes(p.status) ? "green" : p.status === "Declined" ? "red" : p.status === "Draft" ? "grey" : "amber"}>{p.status}</Status><small>{p.id}</small></div><h3>{p.name || "Untitled draft"}</h3><p>{p.area}</p><div className="property-meta"><span><b>{p.bedrooms}</b> beds</span><span><b>{p.condition}</b></span><span><b>{p.rent}</b></span></div><button className="secondary">View property →</button></div></article>)}
   {visible.length === 0 && <div style={{ padding: 24, color: "var(--muted)", fontSize: 12 }}>Nothing to show yet.</div>}</div></div>;
 }
 
-// Care Provider first view is deliberately limited to non-compliance details and
-// photos. Documents are never shown on first view -- the Provider can request
-// specific documentation instead, since BBC never claims the standard six
-// certificates cover everything a given placement might need.
-function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, onRequestDocs, onRequestViewing }: any) {
-  return <Modal title={`${prop.id} · Property`} onClose={onClose}>
-    <div className="property-hero"><div><Status tone={["Accepted", "Matched", "Viewing Confirmed"].includes(prop.status) ? "green" : prop.status === "Declined" ? "red" : "amber"}>{prop.status}</Status><h2>{prop.name}</h2><p>{prop.area} · {prop.bedrooms} bedrooms · {prop.rent}</p></div><div className="property-art">⌂</div></div>
+// Care Provider first view: basic details + photos only. Documents are shown as
+// a checklist (which of the standard six BBC/Partner already has on file) with
+// per-document request actions -- Provider is never left guessing what exists.
+// Sharing the actual document is always BBC's action, same mediation pattern
+// as viewings.
+function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, onRequestDoc, onShareDoc, onRequestDocs, onRequestViewing, onEdit, onWithdraw }: any) {
+  return <Modal title={`${prop.id} · Property`} onClose={onClose} wide>
+    <div className="property-hero"><div><Status tone={["Accepted", "Matched", "Viewing Confirmed"].includes(prop.status) ? "green" : prop.status === "Declined" ? "red" : prop.status === "Draft" ? "grey" : "amber"}>{prop.status}</Status><h2>{prop.name || "Untitled draft"}</h2><p>{prop.area} · {prop.bedrooms} bedrooms · {prop.rent}</p></div><div className="property-art">⌂</div></div>
 
     {role === "provider" ? (
       <>
         <div className="detail-grid"><div><small>Property type</small><strong>{prop.propertyType}</strong></div><div><small>Condition</small><strong>{prop.condition}</strong></div><div><small>Available</small><strong>{prop.availableFrom}</strong></div><div><small>Rent</small><strong>{prop.rent}</strong></div></div>
         <div className="modal-section"><h3>Photos</h3><div className="tag-row"><span>Living room</span><span>Kitchen</span><span>Bedrooms</span><span>Bathroom</span><span>Exterior</span></div></div>
-        <div className="modal-section"><p style={{ fontSize: 11, color: "var(--muted)" }}>Compliance documents aren&apos;t shown at this stage. If there&apos;s something specific you need to see before booking a viewing, request it directly.</p></div>
-        {prop.docRequests?.length > 0 && <div className="modal-section"><h3>Your document requests</h3>{prop.docRequests.map((d: string, i: number) => <p key={i} style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>• {d}</p>)}</div>}
+
+        <div className="modal-section"><h3>Documents</h3><p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>This shows what BBC has on file. Documents aren&apos;t shared automatically — request the ones you need and BBC will release them.</p>
+          {Object.entries(CERT_LABELS).map(([key, label]) => {
+            const onFile = prop.certs?.[key];
+            const existingReq = prop.docRequests?.find((d: DocRequest) => d.certKey === key);
+            return <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ fontSize: 12 }}><span style={{ fontWeight: 600 }}>{label}</span><br/><span style={{ color: onFile ? "var(--green)" : "var(--muted)", fontSize: 11 }}>{onFile ? "On file" : "Not yet provided"}</span></div>
+              {existingReq ? <Status tone={existingReq.status === "Shared" ? "green" : "amber"}>{existingReq.status === "Shared" ? "Shared with you" : "Requested"}</Status>
+                : <button className="secondary" style={{ fontSize: 10, padding: "6px 10px" }} onClick={() => onRequestDoc(prop, key, label, onFile ? "view" : "obtain")}>{onFile ? "Request to view" : "Request this document"}</button>}
+            </div>;
+          })}
+          {prop.docRequests?.filter((d: DocRequest) => d.kind === "custom").map((d: DocRequest) => (
+            <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ fontSize: 12, maxWidth: 380 }}><span style={{ fontWeight: 600 }}>Custom request:</span> {d.label}</div>
+              <Status tone={d.status === "Shared" ? "green" : "amber"}>{d.status}</Status>
+            </div>
+          ))}
+        </div>
+        <div className="modal-section"><button className="secondary" onClick={onRequestDocs}>Ask for something else</button></div>
+
         {(prop.status === "Viewing Requested" || prop.status === "Viewing Confirmed") && <div className="modal-section"><Status tone={prop.status === "Viewing Confirmed" ? "green" : "amber"}>{prop.status === "Viewing Confirmed" ? "Viewing confirmed — check Viewings for the date" : "Viewing requested — BrightBridge is coordinating"}</Status></div>}
         <div className="form-actions">
           <button className="secondary" onClick={onClose}>Close</button>
-          <button className="secondary" onClick={onRequestDocs}>Request documentation</button>
           {prop.status === "Matched" && <button className="primary" onClick={onRequestViewing}>Request a viewing</button>}
         </div>
       </>
@@ -260,24 +323,34 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
       <>
         <div className="detail-grid"><div><small>Property type</small><strong>{prop.propertyType}</strong></div><div><small>Condition</small><strong>{prop.condition}</strong></div><div><small>Available</small><strong>{prop.availableFrom}</strong></div><div><small>Compliance</small><strong>{certStatus(prop.certs)}</strong></div></div>
         <div className="modal-section"><h3>Compliance documents</h3><ul className="checks">{Object.entries(CERT_LABELS).map(([key, label]) => (<li key={key} style={{ opacity: prop.certs[key] ? 1 : 0.4 }}>{prop.certs[key] ? "✓" : "○"} {label}{REQUIRED_CERTS.includes(key) && !prop.certs[key] && <span style={{ color: "var(--amber)", marginLeft: 6, fontWeight: 700 }}>required</span>}</li>))}</ul></div>
-        {prop.docRequests?.length > 0 && <div className="modal-section"><h3>Documentation requested by the care provider</h3>{prop.docRequests.map((d: string, i: number) => <p key={i} style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>• {d}</p>)}</div>}
+
+        {prop.docRequests?.length > 0 && <div className="modal-section"><h3>Care provider&apos;s document requests</h3>
+          {prop.docRequests.map((d: DocRequest) => (
+            <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+              <span style={{ fontSize: 12 }}>{d.kind === "view" ? `Wants to view: ${d.label}` : d.kind === "obtain" ? `Needs us to obtain: ${d.label}` : d.label}</span>
+              {role === "bbc" && d.status === "Requested" && <button className="secondary" style={{ fontSize: 10, padding: "6px 10px" }} onClick={() => onShareDoc(prop.id, d.id)}>Share with care provider</button>}
+              {d.status === "Shared" && <Status tone="green">Shared</Status>}
+            </div>
+          ))}
+        </div>}
+
         {role === "bbc" && prop.status === "Submitted" && <div className="form-actions"><button className="secondary" onClick={() => onDecide(prop.id, "Declined")}>Decline</button><button className="primary" onClick={() => onDecide(prop.id, "Accepted")}>Accept property</button></div>}
         {role === "bbc" && prop.status === "Accepted" && <div className="modal-section"><h3>Match to a requirement</h3><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{requirements.filter((r: RequirementRecord) => r.status === "Open").map((r: RequirementRecord) => (<button key={r.id} className="secondary" style={{ textAlign: "left" }} onClick={() => onMatch(prop.id, r.id)}>{r.id} — {r.title} ({r.operator})</button>))}{requirements.filter((r: RequirementRecord) => r.status === "Open").length === 0 && <p style={{ fontSize: 11, color: "var(--muted)" }}>No open requirements to match against right now.</p>}</div></div>}
-        {role === "partner" && <div className="form-actions"><button className="secondary" onClick={onClose}>Close</button></div>}
+
+        {role === "partner" && <div className="form-actions">
+          <button className="secondary" onClick={onClose}>Close</button>
+          {(prop.status === "Draft" || prop.status === "Submitted") && <button className="secondary" onClick={onEdit}>Edit</button>}
+          {(prop.status === "Draft" || prop.status === "Submitted") && <button className="secondary" style={{ color: "#c23b3b" }} onClick={onWithdraw}>Withdraw</button>}
+        </div>}
+        {role === "bbc" && <div className="form-actions" style={{ borderTop: prop.status === "Submitted" || prop.status === "Accepted" ? "none" : "1px solid var(--line)" }}>{prop.status !== "Submitted" && prop.status !== "Accepted" && <button className="secondary" onClick={onClose}>Close</button>}</div>}
       </>
     )}
   </Modal>;
 }
 
-// Viewings are always mediated by BBC. A Provider's request is never sent
-// straight to the Property Source -- it lands with BBC first, BBC shares it
-// with the Source once ready, the Source proposes a date from their own
-// panel, and BBC confirms it, which is the point every party would be
-// notified by email in a live system.
 function Viewings({ role, viewings, shareWithPartner, partnerProposeDate, confirmViewing, notify }: any) {
   const [dateDraft, setDateDraft] = useState<Record<string, string>>({});
   if (viewings.length === 0) return <div className="page-content"><div className="page-toolbar"><p>No viewings requested yet.</p></div></div>;
-
   const visible = role === "partner" ? viewings.filter((v: ViewingRecord) => v.status !== "Requested") : viewings;
 
   return <div className="page-content"><div className="page-toolbar"><p>{role === "bbc" ? "Coordinate every viewing between the care provider and the property source." : role === "partner" ? "Viewing requests BrightBridge has shared with you." : "Track your requested viewings through to a confirmed date."}</p></div>
@@ -290,10 +363,8 @@ function Viewings({ role, viewings, shareWithPartner, partnerProposeDate, confir
       <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>Provider&apos;s preferred dates: <strong style={{ color: "var(--ink)" }}>{v.proposedByProvider}</strong></div>
       {v.partnerProposedDate && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>Property source proposed: <strong style={{ color: "var(--ink)" }}>{v.partnerProposedDate}</strong></div>}
       {v.confirmedDate && <div style={{ fontSize: 12, color: "var(--green)", marginBottom: 10, fontWeight: 700 }}>Confirmed: {v.confirmedDate}</div>}
-
       {role === "bbc" && v.status === "Requested" && <button className="primary" style={{ fontSize: 11 }} onClick={() => shareWithPartner(v.id)}>Share with property source</button>}
       {role === "bbc" && v.status === "Date Proposed" && <button className="primary" style={{ fontSize: 11 }} onClick={() => confirmViewing(v.id)}>Confirm viewing &amp; notify all parties</button>}
-
       {role === "partner" && v.status === "Shared with Property Source" && <div style={{ display: "flex", gap: 8 }}>
         <input placeholder="e.g. Thu 21 Aug, 2pm" value={dateDraft[v.id] || ""} onChange={e => setDateDraft(d => ({ ...d, [v.id]: e.target.value }))} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 11, flex: 1 }}/>
         <button className="primary" style={{ fontSize: 11 }} onClick={() => { if (!dateDraft[v.id]) { notify("Enter a proposed date first"); return; } partnerProposeDate(v.id, dateDraft[v.id]); }}>Propose date</button>
@@ -322,10 +393,14 @@ function Settings({ role }: any) {
   <div className="form-actions"><button className="primary">Save changes</button></div></div></section></div>;
 }
 
-function RequirementForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (f: any) => void }) {
-  const [f, setF] = useState({ title: "", area: "", serviceType: "Supported living", propertyType: "Family Home (2-3 bed)", bedrooms: "", budget: "", leaseLength: "", neededBy: "" });
+function RequirementForm({ initial, onCancel, onSubmit }: { initial: RequirementRecord | null; onCancel: () => void; onSubmit: (f: any, asDraft: boolean) => void }) {
+  const [f, setF] = useState({
+    title: initial?.title || "", area: initial?.area || "", serviceType: initial?.serviceType || "Supported living",
+    propertyType: initial?.propertyType || "Family Home (2-3 bed)", bedrooms: initial ? String(initial.bedrooms) : "",
+    budget: initial?.budget || "", leaseLength: initial?.leaseLength || "", neededBy: initial?.neededBy || "",
+  });
   const set = (k: string, v: string) => setF(prev => ({ ...prev, [k]: v }));
-  return <form onSubmit={e => { e.preventDefault(); onSubmit(f); }} className="form">
+  return <form onSubmit={e => { e.preventDefault(); onSubmit(f, false); }} className="form">
     <div className="field full"><label>What property do you need?</label><input required value={f.title} onChange={e => set("title", e.target.value)} placeholder="e.g. 6-bed supported living home"/></div>
     <div className="field"><label>Location</label><input required value={f.area} onChange={e => set("area", e.target.value)} placeholder="Town, borough or postcode"/></div>
     <div className="field"><label>Service type</label><select value={f.serviceType} onChange={e => set("serviceType", e.target.value)}><option>Supported living</option><option>Children&apos;s home</option><option>Local authority</option><option>Housing association / RSL</option></select></div>
@@ -333,17 +408,17 @@ function RequirementForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmi
     <div className="field"><label>Bedrooms</label><input type="number" min="1" required value={f.bedrooms} onChange={e => set("bedrooms", e.target.value)} placeholder="e.g. 6"/></div>
     <div className="field"><label>Maximum monthly rent</label><input required value={f.budget} onChange={e => set("budget", e.target.value)} placeholder="£3,500 pcm"/></div>
     <div className="field"><label>Minimum lease length</label><input value={f.leaseLength} onChange={e => set("leaseLength", e.target.value)} placeholder="e.g. Minimum 5 years"/></div>
-    <div className="field"><label>Needed by</label><input type="date" required onChange={e => set("neededBy", new Date(e.target.value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))}/></div>
+    <div className="field"><label>Needed by</label><input type="date" defaultValue="" onChange={e => set("neededBy", new Date(e.target.value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))}/></div>
     <div className="field full"><label>Essential requirements</label><textarea placeholder="Accessibility, parking, garden, location needs…"/></div>
-    <div className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancel</button><button className="primary">Post requirement</button></div>
+    <div className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancel</button><button type="button" className="secondary" onClick={() => onSubmit(f, true)}>Save as draft</button><button className="primary">{initial ? "Save & publish" : "Post requirement"}</button></div>
   </form>;
 }
 
 function DocRequestForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (text: string) => void }) {
   const [text, setText] = useState("");
   return <div style={{ padding: "22px 24px" }}>
-    <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>We collect a standard set of compliance documents, but that won&apos;t always cover everything you need for this placement. Tell us what else you&apos;d like to see.</p>
-    <textarea value={text} onChange={e => setText(e.target.value)} placeholder="e.g. Could we see the most recent fire alarm service record, and confirm the HMO licence covers this configuration?" style={{ width: "100%", minHeight: 100, border: "1px solid var(--line)", borderRadius: 9, padding: 12, fontSize: 12, fontFamily: "inherit" }}/>
+    <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>Not one of the standard six? Tell us what else you need to see for this placement.</p>
+    <textarea value={text} onChange={e => setText(e.target.value)} placeholder="e.g. Could we see the planning permission history for this property?" style={{ width: "100%", minHeight: 100, border: "1px solid var(--line)", borderRadius: 9, padding: 12, fontSize: 12, fontFamily: "inherit" }}/>
     <div className="form-actions" style={{ margin: "16px -24px -22px", padding: "16px 24px 0" }}><button className="secondary" onClick={onCancel}>Cancel</button><button className="primary" disabled={!text.trim()} onClick={() => onSubmit(text.trim())}>Send request</button></div>
   </div>;
 }
@@ -357,14 +432,18 @@ function ViewingRequestForm({ onCancel, onSubmit }: { onCancel: () => void; onSu
   </div>;
 }
 
-function UploadWizard({ step, setStep, forReqId, onCancel, onSubmit }: { step: number; setStep: (n: number) => void; forReqId: string | null; onCancel: () => void; onSubmit: (f: any, c: any) => void }) {
-  const [f, setF] = useState({ address: "", propertyType: "Family Home (2-3 bed)", bedrooms: "", condition: "Furnished", rent: "", availableFrom: "" });
-  const [certs, setCerts] = useState<Record<string, boolean>>(emptyCerts());
-  const set = (k: string, v: string) => setF(prev => ({ ...prev, [k]: v }));
+function UploadWizard({ step, setStep, forReqId, initial, onCancel, onSubmit }: { step: number; setStep: (n: number) => void; forReqId: string | null; initial: PropertyRecord | null; onCancel: () => void; onSubmit: (f: any, c: any, asDraft: boolean) => void }) {
+  const [f, setF] = useState({
+    name: initial?.name || "", area: initial?.area || "", propertyType: initial?.propertyType || "Family Home (2-3 bed)",
+    bedrooms: initial ? String(initial.bedrooms) : "", condition: initial?.condition || "Furnished", rent: initial?.rent || "", availableFrom: initial?.availableFrom || "",
+  });
+  const [certs, setCerts] = useState<Record<string, boolean>>(initial?.certs || emptyCerts());
+  const set = (k: string, v: string) => setF(prev => ({ ...prev, [k]: v, ...(k === "area" ? {} : {}) }));
+  const setAddress = (v: string) => setF(prev => ({ ...prev, name: v, area: v }));
   const labels = ["Property Details", "Images", "Compliance", "Review"];
 
   return <div className="modal-backdrop" onMouseDown={onCancel}><div className="modal" style={{ width: "min(760px,100%)" }} onMouseDown={e => e.stopPropagation()}>
-    <div className="modal-head"><h2>{forReqId ? `Submit a property for ${forReqId}` : "Submit a property"}</h2><button className="icon-button" onClick={onCancel}>×</button></div>
+    <div className="modal-head"><h2>{initial ? `Edit ${initial.id}` : forReqId ? `Submit a property for ${forReqId}` : "Submit a property"}</h2><button className="icon-button" onClick={onCancel}>×</button></div>
     <div style={{ display: "flex", gap: 4, padding: "0 24px" }}>{labels.map((l, i) => (
       <div key={l} style={{ flex: 1, textAlign: "center" }}>
         <div style={{ width: 26, height: 26, borderRadius: "50%", margin: "0 auto 6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: i + 1 <= step ? "var(--ink)" : "#f0eef1", color: i + 1 <= step ? "#fff" : "var(--muted)" }}>{i + 1}</div>
@@ -373,12 +452,12 @@ function UploadWizard({ step, setStep, forReqId, onCancel, onSubmit }: { step: n
       </div>))}</div>
 
     {step === 1 && <div className="form" style={{ paddingTop: 22 }}>
-      <div className="field full"><label>Address</label><input required value={f.address} onChange={e => set("address", e.target.value)} placeholder="42 Wellington Road, Birmingham, B15 3AB"/></div>
+      <div className="field full"><label>Address</label><input required value={f.name} onChange={e => setAddress(e.target.value)} placeholder="42 Wellington Road, Birmingham, B15 3AB"/></div>
       <div className="field"><label>Property type</label><select value={f.propertyType} onChange={e => set("propertyType", e.target.value)}><option>Family Home (2-3 bed)</option><option>HMO (up to 6 bed)</option><option>Larger Format (7+ bed)</option></select></div>
       <div className="field"><label>Bedrooms</label><input type="number" required value={f.bedrooms} onChange={e => set("bedrooms", e.target.value)} placeholder="e.g. 6"/></div>
       <div className="field"><label>Condition</label><select value={f.condition} onChange={e => set("condition", e.target.value)}><option>Furnished</option><option>Unfurnished</option><option>Needs refurbishment</option></select></div>
       <div className="field"><label>Monthly rent</label><input required value={f.rent} onChange={e => set("rent", e.target.value)} placeholder="£1,800 pcm"/></div>
-      <div className="field"><label>Available from</label><input type="date" required onChange={e => set("availableFrom", new Date(e.target.value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))}/></div>
+      <div className="field"><label>Available from</label><input type="date" onChange={e => set("availableFrom", new Date(e.target.value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))}/></div>
       <div className="field full"><label>Description</label><textarea placeholder="Describe the property and what makes it suitable for care providers…"/></div>
     </div>}
 
@@ -392,7 +471,7 @@ function UploadWizard({ step, setStep, forReqId, onCancel, onSubmit }: { step: n
     </div>}
 
     {step === 3 && <div style={{ padding: "22px 24px" }}>
-      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>Upload certificates where available. Properties with complete documentation are reviewed faster. This is the standard set BBC collects — it won&apos;t always be everything a provider asks for, and that&apos;s expected.</p>
+      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>Upload certificates where available. This is the standard set BBC collects — it won&apos;t always be everything a provider asks for, and requests for anything extra come through afterwards.</p>
       {Object.entries(CERT_LABELS).map(([key, label]) => (
         <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--line)" }}>
           <div style={{ fontSize: 12, fontWeight: 600 }}>{label}{REQUIRED_CERTS.includes(key) && <span style={{ color: "#c23b3b", marginLeft: 6, fontWeight: 700, fontSize: 10 }}>Required</span>}</div>
@@ -408,7 +487,7 @@ function UploadWizard({ step, setStep, forReqId, onCancel, onSubmit }: { step: n
     {step === 4 && <div style={{ padding: "22px 24px" }}>
       <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Check everything below before submitting to BBC.</p>
       <div className="detail-grid" style={{ padding: "14px 0" }}>
-        <div><small>Address</small><strong>{f.address || "—"}</strong></div>
+        <div><small>Address</small><strong>{f.name || "—"}</strong></div>
         <div><small>Type</small><strong>{f.propertyType}</strong></div>
         <div><small>Bedrooms</small><strong>{f.bedrooms || "—"}</strong></div>
         <div><small>Rent</small><strong>{f.rent || "—"}</strong></div>
@@ -420,7 +499,10 @@ function UploadWizard({ step, setStep, forReqId, onCancel, onSubmit }: { step: n
 
     <div className="form-actions">
       <button type="button" className="secondary" onClick={() => step === 1 ? onCancel() : setStep(step - 1)}>{step === 1 ? "Cancel" : "Back"}</button>
-      {step < 4 ? <button className="primary" onClick={() => setStep(step + 1)}>Continue</button> : <button className="primary" onClick={() => onSubmit(f, certs)}>Submit property</button>}
+      <div style={{ display: "flex", gap: 10 }}>
+        {step === 4 && <button type="button" className="secondary" onClick={() => onSubmit(f, certs, true)}>Save as draft</button>}
+        {step < 4 ? <button className="primary" onClick={() => setStep(step + 1)}>Continue</button> : <button className="primary" onClick={() => onSubmit(f, certs, false)}>{initial ? "Save & submit" : "Submit property"}</button>}
+      </div>
     </div>
   </div></div>;
 }
