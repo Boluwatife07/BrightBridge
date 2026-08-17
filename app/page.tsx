@@ -75,6 +75,7 @@ const nav: { id: View; label: string; icon: string }[] = [
 ];
 
 export default function Home() {
+  const [screen, setScreen] = useState<"landing" | "onboardProvider" | "onboardPartner" | "app">("landing");
   const [role, setRole] = useState<Role>("bbc");
   const [view, setView] = useState<View>("overview");
   const [search, setSearch] = useState("");
@@ -98,6 +99,8 @@ export default function Home() {
 
   function notify(message: string) { setToast(message); setTimeout(() => setToast(""), 3200); }
   function changeRole(next: Role) { setRole(next); setView("overview"); setModal(null); }
+  function enterAppAs(next: Role) { setRole(next); setScreen("app"); setView("overview"); }
+  function backToStart() { setScreen("landing"); setView("overview"); setModal(null); }
 
   function saveRequirement(fields: any, asDraft: boolean, existingId?: string) {
     if (existingId) {
@@ -191,10 +194,33 @@ export default function Home() {
 
   const reqListFiltered = (list: RequirementRecord[]) => reqFilter === "open" ? list.filter(r => r.status === "Open") : reqFilter === "draft" ? list.filter(r => r.status === "Draft") : list;
 
+  // ---- Onboarding: no one lands in a dashboard without creating an account first ----
+  if (screen === "landing") return <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 40, background: "#fff" }}>
+    <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "var(--ink)" }}>Bright<span style={{ color: "var(--purple)" }}>Bridge</span> Connect</div>
+    <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 52 }}>Connecting housing with care</div>
+    <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 28 }}>I am a...</div>
+    <div style={{ display: "flex", gap: 20, maxWidth: 620, width: "100%" }}>
+      <div onClick={() => setScreen("onboardProvider")} style={{ flex: 1, border: "2px solid var(--line)", borderRadius: 14, padding: "36px 24px", textAlign: "center", cursor: "pointer" }}>
+        <div style={{ fontSize: 32, marginBottom: 14 }}>🏥</div>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Care Provider</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>SLPs, children&apos;s homes, local authorities — submit your property requirements</div>
+      </div>
+      <div onClick={() => setScreen("onboardPartner")} style={{ flex: 1, border: "2px solid var(--line)", borderRadius: 14, padding: "36px 24px", textAlign: "center", cursor: "pointer" }}>
+        <div style={{ fontSize: 32, marginBottom: 14 }}>🔑</div>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Property Partner</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>Landlords and agents — upload properties for care providers</div>
+      </div>
+    </div>
+    <button className="text-button" style={{ marginTop: 36 }} onClick={() => enterAppAs("bbc")}>BrightBridge team member? Go to internal workspace →</button>
+  </div>;
+
+  if (screen === "onboardProvider") return <OnboardProvider onBack={() => setScreen("landing")} onSubmit={() => enterAppAs("provider")}/>;
+  if (screen === "onboardPartner") return <OnboardPartner onBack={() => setScreen("landing")} onSubmit={() => enterAppAs("partner")}/>;
+
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><img src="/brightbridge-logo.png" alt=""/><div><strong>BrightBridge</strong><span>Connect</span></div></div><div className="workspace-label">Workspace</div>
-    <button className="role-switch" onClick={() => changeRole(role === "bbc" ? "provider" : role === "provider" ? "partner" : "bbc")}><span className="role-avatar">{role === "bbc" ? "BB" : role === "provider" ? "WC" : "KP"}</span><span><b>{roleName}</b><small>Switch workspace</small></span><i>⌄</i></button>
+    <button className="role-switch" onClick={() => changeRole(role === "bbc" ? "provider" : role === "provider" ? "partner" : "bbc")}><span className="role-avatar">{role === "bbc" ? "BB" : role === "provider" ? "WC" : "KP"}</span><span><b>{roleName}</b><small>Switch workspace (demo)</small></span><i>⌄</i></button>
     <nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span>{item.icon}</span>{item.label}{item.id === "viewings" && role === "bbc" && bbcViewingsPending > 0 && <em>{bbcViewingsPending}</em>}{item.id === "viewings" && role === "partner" && partnerViewingsPending > 0 && <em>{partnerViewingsPending}</em>}</button>)}</nav>
-    <div className="sidebar-bottom"><button onClick={() => setView("settings")} className={view === "settings" ? "active" : ""}><span>⚙</span>Settings</button><div className="help-card"><span>?</span><strong>Need some help?</strong><small>Visit the support centre</small><button onClick={() => notify("Support centre opened")}>Get support</button></div></div></aside>
+    <div className="sidebar-bottom"><button onClick={() => setView("settings")} className={view === "settings" ? "active" : ""}><span>⚙</span>Settings</button><button onClick={backToStart}><span>⇠</span>Sign out</button><div className="help-card"><span>?</span><strong>Need some help?</strong><small>Visit the support centre</small><button onClick={() => notify("Support centre opened")}>Get support</button></div></div></aside>
     <main className="main"><header><div><p>{roleName}</p><h1>{heading}</h1></div><div className="header-actions"><label className="search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search platform"/></label><button className="notification" onClick={() => notify("You're all caught up")}>♢<i/></button><button className="avatar">{role === "bbc" ? "DA" : role === "provider" ? "WC" : "KP"}</button></div></header>
 
       {view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => { setEditingReq(null); setModal("requirement"); }} openProperty={(p: PropertyRecord) => { setSelectedProp(p); setModal("property"); }} notify={notify} onUpload={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
@@ -418,6 +444,60 @@ function Settings({ role }: any) {
   <div className="field full"><label>Office address</label><input defaultValue="Birmingham, United Kingdom"/></div>
   <div className="form-actions"><button className="primary">Save changes</button></div></div></section></div>;
 }
+
+const LOCATIONS = ["Warrington", "St Helens", "Wider Cheshire", "Greater Manchester", "Yorkshire", "West Midlands", "Staffordshire", "North London", "North West"];
+
+function OnboardProvider({ onBack, onSubmit }: { onBack: () => void; onSubmit: () => void }) {
+  const [locs, setLocs] = useState<string[]>([]);
+  const toggle = (l: string) => setLocs(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l]);
+  return <div style={{ minHeight: "100vh", background: "#fff" }}>
+    <div style={{ padding: "16px 28px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 16 }}>
+      <span style={{ fontWeight: 800 }}>Bright<span style={{ color: "var(--purple)" }}>Bridge</span> Connect</span>
+      <span onClick={onBack} style={{ fontSize: 12, color: "var(--purple)", cursor: "pointer", fontWeight: 600 }}>← Back</span>
+    </div>
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "48px 20px" }}>
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--purple)", fontWeight: 700, marginBottom: 8 }}>Care Provider</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Tell us about your organisation</div>
+      <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 28 }}>You&apos;ll only hear from us when we find a genuine match. No browsing, no noise.</div>
+      <form onSubmit={e => { e.preventDefault(); onSubmit(); }} className="form">
+        <div className="field full"><label>Organisation name</label><input required placeholder="e.g. Willow Care Group"/></div>
+        <div className="field"><label>Contact name</label><input required placeholder="Full name"/></div>
+        <div className="field"><label>Phone</label><input required placeholder="07XXX XXXXXX"/></div>
+        <div className="field full"><label>Email</label><input required type="email" placeholder="you@company.co.uk"/></div>
+        <div className="field full"><label>Service category</label><select required><option value="">Select category</option><option>Supported living</option><option>Children&apos;s home</option><option>Local authority</option><option>Housing association / RSL</option><option>Other</option></select></div>
+        <div className="field full">
+          <label>Where are you looking for properties?</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+            {LOCATIONS.map(l => <span key={l} onClick={() => toggle(l)} style={{ padding: "7px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer", border: `1px solid ${locs.includes(l) ? "var(--purple)" : "var(--line)"}`, background: locs.includes(l) ? "var(--purple-soft)" : "transparent", color: locs.includes(l) ? "var(--purple)" : "var(--muted)" }}>{l}</span>)}
+          </div>
+        </div>
+        <div className="form-actions"><button type="button" className="secondary" onClick={onBack}>Cancel</button><button className="primary">Create account</button></div>
+      </form>
+    </div>
+  </div>;
+}
+
+function OnboardPartner({ onBack, onSubmit }: { onBack: () => void; onSubmit: () => void }) {
+  return <div style={{ minHeight: "100vh", background: "#fff" }}>
+    <div style={{ padding: "16px 28px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 16 }}>
+      <span style={{ fontWeight: 800 }}>Bright<span style={{ color: "var(--purple)" }}>Bridge</span> Connect</span>
+      <span onClick={onBack} style={{ fontSize: 12, color: "var(--purple)", cursor: "pointer", fontWeight: 600 }}>← Back</span>
+    </div>
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "48px 20px" }}>
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--purple)", fontWeight: 700, marginBottom: 8 }}>Property Partner</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Tell us about yourself</div>
+      <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 28 }}>Whether you&apos;re a landlord with a single property or an agent with a portfolio, the same process applies.</div>
+      <form onSubmit={e => { e.preventDefault(); onSubmit(); }} className="form">
+        <div className="field full"><label>Name</label><input required placeholder="Full name"/></div>
+        <div className="field"><label>Email</label><input required type="email" placeholder="you@email.com"/></div>
+        <div className="field"><label>Phone</label><input required placeholder="07XXX XXXXXX"/></div>
+        <div className="field full"><label>Organisation</label><input placeholder="Leave blank if you're an individual landlord"/></div>
+        <div className="form-actions"><button type="button" className="secondary" onClick={onBack}>Cancel</button><button className="primary">Create account</button></div>
+      </form>
+    </div>
+  </div>;
+}
+
 
 const ACCESSIBILITY_OPTIONS = ["Ground floor bedroom", "Wheelchair accessible", "Wet room", "Step-free access", "Wider doorways"];
 
