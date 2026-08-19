@@ -148,11 +148,11 @@ export default function Home() {
   function saveRequirement(fields: any, asDraft: boolean, existingId?: string) {
     if (existingId) {
       setRequirements(prev => prev.map(r => r.id === existingId ? { ...r, ...fields, status: asDraft ? "Draft" : "Open", postedOn: r.postedOn || (asDraft ? "" : today()) } : r));
-      notify(asDraft ? "Draft saved" : "Requirement updated and shared with property partners");
+      notify(asDraft ? "Saved as draft" : "Requirement updated and shared with property partners");
     } else {
       const req: RequirementRecord = { id: nextId("REQ"), status: asDraft ? "Draft" : "Open", operator: myName, matchedPropertyIds: [], postedOn: asDraft ? "" : today(), ...fields };
       setRequirements(prev => [req, ...prev]);
-      notify(asDraft ? "Saved as a draft, nothing has been shared yet" : `${req.id} is live, every property partner covering ${fields.area || "this area"} has been notified`);
+      notify(asDraft ? "Saved as draft" : `${req.id} is live, every property partner covering ${fields.area || "this area"} has been notified`);
     }
     setModal(null); setEditingReq(null);
   }
@@ -276,7 +276,7 @@ export default function Home() {
       {view === "requirements" && <Requirements role={role} requirements={requirements} reqFilter={reqFilter} setReqFilter={setReqFilter} reqListFiltered={reqListFiltered} openDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }} create={() => { setEditingReq(null); setModal("requirement"); }} partnerSafeReq={partnerSafeReq}/>}
       {view === "properties" && <Properties role={role} items={filteredProps} requirements={requirements} openProperty={openProperty} add={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
       {view === "viewings" && <Viewings role={role} viewings={viewings} shareWithPartner={shareWithPartner} partnerPickDate={partnerPickDate} confirmViewing={confirmViewing} onDeclineDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("declineDates"); }} onNewDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("viewingRequest"); }} setView={setView}/>}
-      {view === "messages" && <Messages role={role} myName={myName}/>}
+      {view === "messages" && <Messages role={role} myName={myName} properties={properties} requirements={requirements}/>}
       {view === "settings" && <Settings role={role}/>}
     </main>
 
@@ -392,15 +392,11 @@ function Requirements({ role, requirements, reqFilter, setReqFilter, reqListFilt
 
 function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPublish, onWithdraw, onSubmitProperty, onOpenProperty }: any) {
   const matched = properties.filter((p: PropertyRecord) => req.matchedPropertyIds.includes(p.id));
-  const actions = role === "provider" && req.status !== "Withdrawn"
-    ? [{ icon: "✎", label: "Edit", onClick: onEdit }, ...(req.status === "Open" ? [{ icon: "⊘", label: "Withdraw", onClick: onWithdraw, danger: true }] : [])]
-    : [];
-
-  return <Modal title={`${req.id} · Requirement`} onClose={onClose} actions={actions} wide>
+  return <Modal title={`${req.id} · Requirement`} onClose={onClose} wide>
     <div className="requirement-detail">
       <Status tone={reqTone(req.status)}>{req.status}</Status>
       <h2>{req.title || "Untitled draft"}</h2>
-      <p>{role === "partner" ? "A care provider is looking for a long term let matching this brief." : req.status === "Open" ? `Live since ${req.postedOn}, shared with every property partner covering ${req.area}.` : "Not shared with anyone yet."}</p>
+      <p>{role === "partner" ? "A care provider is looking for a long term let matching this brief." : req.status === "Open" ? `Live since ${req.postedOn}, shared with every property partner covering ${req.area}.` : "Saved as draft."}</p>
       <div className="detail-grid">
         <div><small>Location</small><strong>{req.area || "—"}</strong></div>
         <div><small>Monthly rent</small><strong>{req.budget || "—"}</strong></div>
@@ -419,12 +415,13 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
     </div>
 
     <div className="modal-section" style={{ borderTop: "1px solid var(--line)" }}>
-      <h3>Documents for every property matched to this brief</h3>
-      <div className="tag-row" style={{ marginTop: 10 }}>
-        {STANDARD_DOCS.map(d => <span key={d}>{d}</span>)}
-        {req.extraDocs?.map((d: string) => <span key={d} style={{ background: "var(--purple-soft)", color: "var(--purple)", fontWeight: 700 }}>{d}</span>)}
+      <h3>Documents collected for every property</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", marginTop: 10 }}>
+        {STANDARD_DOCS.map(d => <div key={d} style={{ fontSize: 11, padding: "5px 0", display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: "var(--purple)", fontWeight: 700 }}>✓</span>{d}</div>)}
+        {req.extraDocs?.map((d: string) => <div key={d} style={{ fontSize: 11, padding: "5px 0", display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: "var(--purple)", fontWeight: 700 }}>＋</span><strong>{d}</strong></div>)}
       </div>
-      <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>{role === "partner" ? "Highlighted items are extra to the standard set and are asked for on this brief." : "Highlighted items are your additions. They appear on the property source's checklist automatically."}</p>
+      {role === "provider" && req.extraDocs?.length > 0 && <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>Items marked ＋ are your additions.</p>}
+      {role === "partner" && req.extraDocs?.length > 0 && <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>Items marked ＋ are extra to the standard set and are required on this brief.</p>}
     </div>
 
     {role !== "partner" && <div className="modal-section" style={{ borderTop: "1px solid var(--line)" }}>
@@ -440,6 +437,8 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
     </div>}
 
     <div className="form-actions">
+      {role === "provider" && req.status !== "Withdrawn" && <button className="secondary" onClick={onEdit}>Edit</button>}
+      {role === "provider" && req.status === "Open" && <button className="secondary" style={{ color: "#c23b3b" }} onClick={onWithdraw}>Withdraw</button>}
       {role === "provider" && req.status === "Draft" && <button className="primary" onClick={onPublish}>Submit requirement</button>}
       {role === "partner" && req.status === "Open" && (() => { const already = properties.filter((p: PropertyRecord) => p.matchedReq === req.id && p.status !== "Withdrawn"); return already.length > 0 ? <p style={{ fontSize: 12, color: "var(--purple)", fontWeight: 600 }}>You have submitted {already[0].name} ({already[0].id}) against this requirement.</p> : <button className="primary" onClick={onSubmitProperty}>Submit a matching property</button>; })()}
     </div>
@@ -538,22 +537,18 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
     {role === "provider" ? <>
       <div className="modal-section">
         <h3>Documents</h3>
-        <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>Full copies are released once your viewing is confirmed.</p>
-        {prop.documents.map((d: DocItem) => (
-          <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>{d.label}{d.askedForBy === "provider" && <span style={{ color: "var(--purple)", fontSize: 10, marginLeft: 6, fontWeight: 700 }}>you asked for this</span>}</div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Status tone={docTone(d.state)}>{d.state === "Being obtained" ? "With the property source" : d.state}</Status>
-              {d.state === "Released" && <button className="secondary" style={{ fontSize: 10, padding: "6px 10px" }}>Open</button>}
-            </div>
-          </div>
-        ))}
+        {(() => { const released = prop.documents.filter((d: DocItem) => d.state === "Released"); const pending = prop.documents.filter((d: DocItem) => d.state !== "Released"); return <>
+          {released.length > 0 && <><p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>{released.length} document{released.length > 1 ? "s" : ""} available</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", marginBottom: 14 }}>{released.map((d: DocItem) => <div key={d.id} style={{ fontSize: 12, padding: "6px 0", display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: "var(--green)", fontWeight: 700 }}>✓</span>{d.label}<button className="secondary" style={{ fontSize: 9, padding: "3px 8px", marginLeft: "auto" }}>Open</button></div>)}</div></>}
+          {pending.length > 0 && <><p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>{pending.length} document{pending.length > 1 ? "s" : ""} pending{prop.status !== "Viewing confirmed" ? ", released once your viewing is confirmed" : ""}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>{pending.map((d: DocItem) => <div key={d.id} style={{ fontSize: 12, padding: "6px 0", display: "flex", alignItems: "center", gap: 6, color: "var(--muted)" }}><span>○</span>{d.label}</div>)}</div></>}
+        </>; })()}
         <button className="secondary" style={{ marginTop: 14 }} onClick={onRequestDocs}>Ask for more documents</button>
       </div>
 
       {prop.status === "Matched" && <div className="form-actions"><button className="secondary" style={{ color: "#c23b3b" }} onClick={onPassOn}>Not suitable</button><button className="primary" onClick={onRequestViewing}>Request a viewing</button></div>}
-      {prop.status === "Viewing requested" && <div className="modal-section"><Status tone="amber">Viewing requested, BrightBridge is arranging it</Status></div>}
-      {prop.status === "Viewing confirmed" && <div className="modal-section"><Status tone="green">Viewing confirmed, see Viewings for the date</Status></div>}
+      {prop.status === "Viewing requested" && <div className="modal-section" style={{ padding: "12px 24px" }}><p style={{ fontSize: 12, color: "var(--muted)" }}>Viewing requested. BrightBridge is arranging a date with the property source and will confirm with you by email.</p></div>}
+      {prop.status === "Viewing confirmed" && <div className="modal-section" style={{ padding: "12px 24px" }}><p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>Viewing confirmed. Check the Viewings tab for the date.</p></div>}
     </> : <>
       <div className="modal-section">
         <h3>Documents</h3>
@@ -622,20 +617,87 @@ function Viewings({ role, viewings, shareWithPartner, partnerPickDate, confirmVi
   </div>;
 }
 
-function Messages({ role, myName }: any) {
-  const threads = role === "bbc" ? ["Willow Care Group", "Kush Properties Ltd", "Walsall MBC"] : ["BrightBridge team"];
+function Messages({ role, myName, properties, requirements }: any) {
+  /* Threads are per-property once matched. All three parties (BBC, provider, partner) 
+     share one thread but names are anonymised: providers see "Property source", 
+     partners see "Care provider", BBC sees real names. */
+  type MsgThread = { propertyId: string; propertyName: string; reqId: string; preview: string; time: string; messages: { from: "bbc" | "provider" | "partner"; text: string; time: string }[] };
+
+  const threads: MsgThread[] = [
+    { propertyId: "PROP-231", propertyName: "Detached home, Penn", reqId: "REQ-1048", preview: role === "provider" ? "Certificate on its way…" : role === "partner" ? "Upload the fire alarm cert…" : "Waiting on the cert…", time: "09:42",
+      messages: [
+        { from: "bbc", text: "This property has been matched to REQ-1048. I will be coordinating between you both from here.", time: "Mon 14:20" },
+        { from: "provider", text: "Great, can you check if they have the fire alarm installation certificate? We need it before the viewing.", time: "Mon 15:02" },
+        { from: "bbc", text: "Will do, passing that on now.", time: "Mon 15:10" },
+        { from: "partner", text: "I will get the fire alarm cert from the installer, should have it by end of week.", time: "Tue 09:18" },
+        { from: "bbc", text: "Thanks, I will let them know.", time: "Tue 09:42" },
+      ] },
+    { propertyId: "PROP-229", propertyName: "Corner house, Hanley", reqId: "", preview: "Under review…", time: "Yesterday",
+      messages: [
+        { from: "bbc", text: "We have received your submission for this property. Currently reviewing it against our live requirements.", time: "Thu 11:30" },
+        { from: "partner", text: "Thanks, let me know if you need anything else.", time: "Thu 11:45" },
+      ] },
+  ];
+
+  const visibleThreads = role === "provider"
+    ? threads.filter(t => t.messages.some(m => m.from === "provider" || m.from === "bbc"))
+    : role === "partner"
+    ? threads.filter(t => t.messages.some(m => m.from === "partner" || m.from === "bbc"))
+    : threads;
+
   const [active, setActive] = useState(0);
-  const providerChat = { incoming: "The insurance certificate you asked for is with the property source now, I will send it across as soon as it lands.", outgoing: "Thank you, no rush before the viewing." };
-  const partnerChat = { incoming: "We have a care provider interested in the Penn property. Could you upload the fire alarm installation certificate when you get a chance?", outgoing: "Sure, I will get that over today." };
-  const bbcChat = { incoming: "Hi, just checking in on the Penn viewing, has a date been confirmed?", outgoing: "Yes, shared with the property source. Waiting on their availability." };
-  const chat = role === "provider" ? providerChat : role === "partner" ? partnerChat : bbcChat;
-  const preview = role === "provider" ? "About the Penn viewing…" : role === "partner" ? "Fire alarm cert for Penn…" : "Checking in on Penn…";
+  const thread = visibleThreads[active] || visibleThreads[0];
+
+  function senderName(from: "bbc" | "provider" | "partner") {
+    if (from === "bbc") return "BrightBridge";
+    if (role === "bbc") return from === "provider" ? "Willow Care Group" : "Kush Properties";
+    if (role === "provider") return from === "provider" ? "You" : from === "partner" ? "Property source" : "BrightBridge";
+    return from === "partner" ? "You" : from === "provider" ? "Care provider" : "BrightBridge";
+  }
+
+  function senderInitials(from: "bbc" | "provider" | "partner") {
+    if (from === "bbc") return "BB";
+    if (role === "bbc") return from === "provider" ? "WC" : "KP";
+    return from === role ? "You" : from === "provider" ? "CP" : "PS";
+  }
 
   return <div className="page-content message-layout">
-    <section className="conversation-list"><div className="message-search">⌕ Search conversations</div>{threads.map((p, i) => <button className={active === i ? "active" : ""} onClick={() => setActive(i)} key={p}><span>{p.split(" ").map(x => x[0]).slice(0, 2).join("")}</span><div><strong>{p}</strong><p>{i === 0 ? preview : "Thanks, sending that over…"}</p></div><small>{i === 0 ? "09:42" : "Yesterday"}</small></button>)}</section>
-    <section className="chat"><header><div className="avatar">{threads[active].split(" ").map(x => x[0]).slice(0, 2).join("")}</div><div><strong>{threads[active]}</strong><p>{role === "bbc" ? "Regarding an active viewing" : "Your BrightBridge contact"}</p></div></header>
-      <div className="chat-body"><span className="date-label">Today</span><div className="bubble incoming">{chat.incoming}</div><div className="bubble outgoing">{chat.outgoing}</div></div>
-      <form className="composer" onSubmit={e => e.preventDefault()}><button>＋</button><input placeholder="Write a message"/><button className="send">↑</button></form></section>
+    <section className="conversation-list">
+      <div className="message-search">⌕ Search conversations</div>
+      {visibleThreads.map((t, i) => <button className={active === i ? "active" : ""} onClick={() => setActive(i)} key={t.propertyId}>
+        <span>⌂</span>
+        <div><strong>{t.propertyName}</strong><p>{t.preview}</p></div>
+        <small>{t.time}</small>
+      </button>)}
+      {visibleThreads.length === 0 && <div style={{ padding: 20, fontSize: 11, color: "var(--muted)" }}>No conversations yet. A thread is created when a property is matched to a requirement.</div>}
+    </section>
+    {thread ? <section className="chat">
+      <header>
+        <div className="avatar">⌂</div>
+        <div>
+          <strong>{thread.propertyName}</strong>
+          <p>{thread.reqId ? `${thread.reqId} · ` : ""}
+            {role === "bbc" ? "Willow Care Group + Kush Properties" : role === "provider" ? "You, BrightBridge, Property source" : "You, BrightBridge, Care provider"}
+          </p>
+        </div>
+      </header>
+      <div className="chat-body">
+        <span className="date-label">This week</span>
+        {thread.messages.map((m, i) => {
+          const isMe = m.from === role;
+          return <div key={i} className={`bubble ${isMe ? "outgoing" : "incoming"}`}>
+            {!isMe && <div style={{ fontSize: 10, fontWeight: 700, color: m.from === "bbc" ? "var(--purple)" : "var(--muted)", marginBottom: 3 }}>{senderName(m.from)}</div>}
+            {m.text}
+            <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 4, textAlign: isMe ? "right" : "left" }}>{m.time}</div>
+          </div>;
+        })}
+      </div>
+      <form className="composer" onSubmit={e => e.preventDefault()}>
+        <button>＋</button>
+        <input placeholder="Write a message"/>
+        <button className="send">↑</button>
+      </form>
+    </section> : <section className="chat" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 12 }}>Select a conversation</section>}
   </div>;
 }
 
@@ -717,7 +779,9 @@ function RequirementForm({ initial, onCancel, onSubmit }: { initial: Requirement
 
     <div className="field full">
       <label>Documentation</label>
-      <p style={{ fontSize: 11, color: "var(--muted)", margin: "2px 0 8px", lineHeight: 1.6 }}>BrightBridge collects these for every property as standard: {STANDARD_DOCS.join(", ").toLowerCase()}. Add anything else you need and it goes on the property source&apos;s checklist automatically.</p>
+      <p style={{ fontSize: 11, color: "var(--muted)", margin: "2px 0 8px", lineHeight: 1.6 }}>BrightBridge collects these for every property as standard.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", margin: "8px 0 16px" }}>{STANDARD_DOCS.map(d => <div key={d} style={{ fontSize: 11, color: "var(--ink)", padding: "6px 0", display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: "var(--purple)", fontWeight: 700 }}>✓</span>{d}</div>)}</div>
+      <label style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, display: "block" }}>Anything else you need beyond the standard set?</label>
       <Chips options={COMMON_EXTRA_DOCS} selected={f.extraDocs} onToggle={v => toggle("extraDocs", v)}/>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <input value={otherDoc} onChange={e => setOtherDoc(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addOther(); } }} placeholder="Something else you need" style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 9, padding: "10px 12px" }}/>
@@ -726,7 +790,7 @@ function RequirementForm({ initial, onCancel, onSubmit }: { initial: Requirement
       {f.extraDocs.filter(d => !COMMON_EXTRA_DOCS.includes(d)).length > 0 && <div className="tag-row" style={{ marginTop: 10 }}>{f.extraDocs.filter(d => !COMMON_EXTRA_DOCS.includes(d)).map(d => <span key={d} onClick={() => toggle("extraDocs", d)} style={{ cursor: "pointer" }}>{d} ×</span>)}</div>}
     </div>
 
-    <div className="field full"><label>Anything else worth knowing</label><textarea value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Context that would help a property partner judge whether their property fits"/></div>
+    <div className="field full"><label>Notes</label><textarea value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Any other context that would help find the right property"/></div>
     <div className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancel</button><button type="button" className="secondary" onClick={() => onSubmit(f, true)}>Save as draft</button><button className="primary">{initial ? "Save and submit" : "Submit requirement"}</button></div>
   </form>;
 }
