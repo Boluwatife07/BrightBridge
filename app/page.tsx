@@ -17,9 +17,9 @@ type DocItem = { id: string; label: string; standard: boolean; askedForBy: "" | 
 
 const STANDARD_DOCS = [
   "EICR (electrical installation)", "Gas safety certificate (CP12)", "EPC (energy performance)",
-  "Fire risk assessment", "HMO licence (where applicable)", "Legionella risk assessment",
+  "Fire risk assessment", "Fire alarm installation certificate", "HMO licence (where applicable)", "Legionella risk assessment", "Floor plan with room dimensions",
 ];
-const REQUIRED_DOCS = STANDARD_DOCS.slice(0, 4);
+const REQUIRED_DOCS = STANDARD_DOCS.slice(0, 5);
 
 /* Common extras care providers ask for, offered as a checklist so they aren't
    guessing at what we already collect. */
@@ -38,8 +38,8 @@ const standardDocs = (onFile: boolean[] = []): DocItem[] => STANDARD_DOCS.map((l
 
 type PropertyRecord = {
   id: string; name: string; area: string; propertyType: string; bedrooms: string | number; bathrooms: string | number;
-  condition: string; rent: string; availableFrom: string; description: string;
-  status: string; matchedReq: string | null; documents: DocItem[];
+  condition: string; rent: string; leaseOffer: string; availableFrom: string; description: string;
+  status: string; declineReason: string; matchedReq: string | null; documents: DocItem[];
   passedOn: { reqId: string; reason: string }[];
 };
 
@@ -64,9 +64,9 @@ const seedRequirements: RequirementRecord[] = [
 ];
 
 const seedProperties: PropertyRecord[] = [
-  { id: "PROP-231", name: "Detached home, Penn", area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Matched", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [] },
-  { id: "PROP-229", name: "Corner house, Hanley", area: "Stoke-on-Trent, ST1", propertyType: "Larger format (7+ bed)", bedrooms: 7, bathrooms: 2, condition: "Furnished", rent: "£3,900 pcm", availableFrom: "1 Oct 2026", description: "", status: "Submitted", matchedReq: null, documents: standardDocs([true, true, false, true, false, false]), passedOn: [] },
-  { id: "PROP-226", name: "Accessible bungalow", area: "Walsall, WS3", propertyType: "Family home (2 to 3 bed)", bedrooms: 4, bathrooms: 2, condition: "Unfurnished", rent: "£2,950 pcm", availableFrom: "Immediate", description: "", status: "Accepted", matchedReq: null, documents: standardDocs([true, false, false, false, false, false]), passedOn: [] },
+  { id: "PROP-231", name: "Detached home, Penn", area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", leaseOffer: "5 to 10 years", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false, false, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [] },
+  { id: "PROP-229", name: "Corner house, Hanley", area: "Stoke-on-Trent, ST1", propertyType: "Larger format (7+ bed)", bedrooms: 7, bathrooms: 2, condition: "Furnished", rent: "£3,900 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Oct 2026", description: "", status: "Submitted", declineReason: "", matchedReq: null, documents: standardDocs([true, true, false, true, false, false, false, false]), passedOn: [] },
+  { id: "PROP-226", name: "Accessible bungalow", area: "Walsall, WS3", propertyType: "Family home (2 to 3 bed)", bedrooms: 4, bathrooms: 2, condition: "Unfurnished", rent: "£2,950 pcm", leaseOffer: "3 to 7 years", availableFrom: "Immediate", description: "", status: "Accepted", declineReason: "", matchedReq: null, documents: standardDocs([true, false, false, false, false, false, false, false]), passedOn: [] },
 ];
 
 function Status({ children, tone = "purple" }: { children: React.ReactNode; tone?: "purple" | "green" | "amber" | "grey" | "red" }) { return <span className={`status ${tone}`}>{children}</span>; }
@@ -176,14 +176,14 @@ export default function Home() {
       setProperties(prev => prev.map(p => p.id === existingId ? { ...p, ...fields, documents: docs, status: asDraft ? "Draft" : (p.status === "Draft" ? "Submitted" : p.status) } : p));
       notify(asDraft ? "Draft saved" : "Property updated and sent to BrightBridge");
     } else {
-      const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", matchedReq: forReqId, documents: docsForRequirement(forReqId, docs), passedOn: [], ...fields };
+      const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", declineReason: "", matchedReq: forReqId, documents: docsForRequirement(forReqId, docs), passedOn: [], ...fields };
       setProperties(prev => [prop, ...prev]);
       notify(asDraft ? "Saved as a draft, nothing has been sent to BrightBridge" : (forReqId ? `Property submitted against ${forReqId}, BrightBridge will review it` : "Property submitted, BrightBridge will review it"));
     }
     setModal(null); setEditingProp(null);
   }
   function withdrawProperty(id: string) { setProperties(prev => prev.map(p => p.id === id ? { ...p, status: "Withdrawn" } : p)); notify("Property withdrawn"); setModal(null); }
-  function decideProperty(id: string, decision: "Accepted" | "Declined") { setProperties(prev => prev.map(p => p.id === id ? { ...p, status: decision } : p)); notify(decision === "Accepted" ? "Property accepted, ready to match to a requirement" : "Property declined"); setModal(null); }
+  function decideProperty(id: string, decision: "Accepted" | "Declined", reason?: string) { setProperties(prev => prev.map(p => p.id === id ? { ...p, status: decision, declineReason: reason || "" } : p)); notify(decision === "Accepted" ? "Property accepted, ready to match to a requirement" : "Property declined, the partner has been told why"); setModal(null); }
   function matchProperty(propId: string, reqId: string) {
     setProperties(prev => prev.map(p => p.id !== propId ? p : { ...p, status: "Matched", matchedReq: reqId, documents: docsForRequirement(reqId, p.documents) }));
     setRequirements(prev => prev.map(r => r.id === reqId ? { ...r, matchedPropertyIds: [...r.matchedPropertyIds, propId] } : r));
@@ -441,7 +441,7 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
 
     <div className="form-actions">
       {role === "provider" && req.status === "Draft" && <button className="primary" onClick={onPublish}>Submit requirement</button>}
-      {role === "partner" && req.status === "Open" && <button className="primary" onClick={onSubmitProperty}>Submit a matching property</button>}
+      {role === "partner" && req.status === "Open" && (() => { const already = properties.filter((p: PropertyRecord) => p.matchedReq === req.id && p.status !== "Withdrawn"); return already.length > 0 ? <p style={{ fontSize: 12, color: "var(--purple)", fontWeight: 600 }}>You have submitted {already[0].name} ({already[0].id}) against this requirement.</p> : <button className="primary" onClick={onSubmitProperty}>Submit a matching property</button>; })()}
     </div>
   </Modal>;
 }
@@ -464,7 +464,7 @@ function Properties({ role, items, requirements, openProperty, add }: any) {
         <div><Status tone={propTone(p.status)}>{p.status}</Status><small>{p.id}</small></div>
         <h3>{p.name || "Untitled draft"}</h3>
         <p>{p.area}</p>
-        {role === "provider" && p.matchedReq && <p style={{ marginTop: 6, color: "var(--purple)", fontWeight: 700 }}>For {p.matchedReq} · {reqTitle(p.matchedReq)}</p>}
+        {p.matchedReq && <p style={{ marginTop: 6, color: "var(--purple)", fontWeight: 700 }}>{role === "provider" ? "For" : "Matched to"} {p.matchedReq}{reqTitle(p.matchedReq) ? ` · ${reqTitle(p.matchedReq)}` : ""}</p>}
         <div className="property-meta"><span><b>{p.bedrooms}</b> beds</span><span><b>{p.bathrooms}</b> baths</span><span><b>{p.rent}</b></span></div>
         <button className="secondary">View property →</button>
       </div></article>)}
@@ -472,11 +472,27 @@ function Properties({ role, items, requirements, openProperty, add }: any) {
   </div>;
 }
 
+function DecidePropertyPanel({ propId, onDecide }: { propId: string; onDecide: (id: string, decision: "Accepted" | "Declined", reason?: string) => void }) {
+  const [declining, setDeclining] = useState(false);
+  const [reason, setReason] = useState("");
+  const REASONS = ["Property does not meet minimum safety standards", "Location not in demand from current providers", "Rent significantly above market for the area", "Insufficient information to assess", "Property needs substantial refurbishment"];
+  if (!declining) return <div className="form-actions"><button className="secondary" onClick={() => setDeclining(true)}>Decline</button><button className="primary" onClick={() => onDecide(propId, "Accepted")}>Accept property</button></div>;
+  return <div className="modal-section">
+    <h3>Why is this being declined?</h3>
+    <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>The partner sees this word for word.</p>
+    <Chips options={REASONS} selected={reason ? [reason] : []} onToggle={v => setReason(reason === v ? "" : v)}/>
+    <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Or write a specific reason" style={{ width: "100%", marginTop: 10, minHeight: 60, border: "1px solid var(--line)", borderRadius: 9, padding: 12, fontSize: 12, fontFamily: "inherit" }}/>
+    <div className="form-actions"><button className="secondary" onClick={() => setDeclining(false)}>Cancel</button><button className="secondary" style={{ color: "#c23b3b" }} disabled={!reason.trim()} onClick={() => onDecide(propId, "Declined", reason.trim())}>Decline with this reason</button></div>
+  </div>;
+}
+
 function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, onRequestDocs, onAskPartner, onMarkOnFile, onRelease, onRequestViewing, onPassOn, onEdit, onWithdraw }: any) {
-  const partnerActions = role === "partner" && prop.status !== "Withdrawn" ? [{ icon: "✎", label: "Edit", onClick: onEdit }, { icon: "⊘", label: "Withdraw, no longer available", onClick: onWithdraw, danger: true }] : [];
+  const partnerActions = role === "partner" && !["Withdrawn", "Declined"].includes(prop.status) ? [{ icon: "✎", label: "Edit", onClick: onEdit }, { icon: "⊘", label: "Withdraw, no longer available", onClick: onWithdraw, danger: true }] : [];
 
   return <Modal title={`${prop.id} · Property`} onClose={onClose} actions={partnerActions} wide>
-    <div className="property-hero"><div><Status tone={propTone(prop.status)}>{prop.status}</Status><h2>{prop.name || "Untitled draft"}</h2><p>{prop.area} · {prop.bedrooms} bedrooms · {prop.bathrooms} bathrooms · {prop.condition} · {prop.rent}</p>{prop.matchedReq && <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>}</div><div className="property-art">⌂</div></div>
+    {role === "partner" && prop.status === "Declined" && prop.declineReason && <div style={{ margin: "16px 24px 0", padding: "14px 16px", borderRadius: 10, background: "#fdeceb", fontSize: 12, lineHeight: 1.6 }}><strong style={{ display: "block", marginBottom: 4 }}>BrightBridge declined this property</strong>{prop.declineReason}</div>}
+    <div className="property-hero"><div><Status tone={propTone(prop.status)}>{prop.status}</Status><h2>{prop.name || "Untitled draft"}</h2><p>{prop.area} · {prop.bedrooms} bedrooms · {prop.bathrooms} bathrooms · {prop.condition} · {prop.rent}{prop.leaseOffer ? ` · ${prop.leaseOffer}` : ""}</p>{prop.matchedReq && role === "partner" && (() => { const mr = requirements.find((r: RequirementRecord) => r.id === prop.matchedReq); return mr ? <p style={{ fontSize: 12, marginTop: 4, color: "var(--purple)" }}>Matched to {mr.id}: {mr.title} · {mr.area} · {mr.bedrooms} beds · {mr.budget}</p> : <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>; })()}
+    {prop.matchedReq && role !== "partner" && <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>}</div><div className="property-art">⌂</div></div>
 
     <div className="modal-section"><h3>Photos</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -491,6 +507,7 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
         <div><small>Available from</small><strong>{prop.availableFrom || "—"}</strong></div>
         <div><small>Property type</small><strong>{prop.propertyType}</strong></div>
         <div><small>Condition</small><strong>{prop.condition}</strong></div>
+        <div><small>Lease offered</small><strong>{prop.leaseOffer || "—"}</strong></div>
       </div>
     </div>
 
@@ -529,7 +546,7 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <Status tone={docTone(d.state)}>{d.state}</Status>
               {role === "bbc" && d.state === "Requested" && <button className="mini-action" onClick={() => onAskPartner(prop.id, d.id)}>Ask the property source</button>}
-              {role === "partner" && d.state === "Being obtained" && <button className="secondary" style={{ fontSize: 10, padding: "6px 10px" }} onClick={() => onMarkOnFile(prop.id, d.id)}>↑ Upload</button>}
+              {role === "partner" && d.state === "Being obtained" && <button className="primary" style={{ fontSize: 10, padding: "7px 10px" }} onClick={() => onMarkOnFile(prop.id, d.id)}>↑ Upload</button>}
               {role === "bbc" && d.state === "Being obtained" && <button className="secondary" style={{ fontSize: 10, padding: "6px 10px" }} onClick={() => onMarkOnFile(prop.id, d.id)}>Mark received</button>}
               {role === "bbc" && d.state === "On file" && <button className="mini-action" onClick={() => onRelease(prop.id, d.id)}>Release</button>}
             </div>
@@ -539,7 +556,7 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
 
       {prop.passedOn.length > 0 && role === "bbc" && <div className="modal-section"><h3>Passed on</h3>{prop.passedOn.map((x: any, i: number) => <p key={i} style={{ fontSize: 11, color: "var(--muted)" }}>{x.reqId}: {x.reason}</p>)}</div>}
 
-      {role === "bbc" && prop.status === "Submitted" && <div className="form-actions"><button className="secondary" onClick={() => onDecide(prop.id, "Declined")}>Decline</button><button className="primary" onClick={() => onDecide(prop.id, "Accepted")}>Accept property</button></div>}
+      {role === "bbc" && prop.status === "Submitted" && <DecidePropertyPanel propId={prop.id} onDecide={onDecide}/>}
       {role === "bbc" && prop.status === "Accepted" && <div className="modal-section"><h3>Match to a requirement</h3><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{requirements.filter((r: RequirementRecord) => r.status === "Open").map((r: RequirementRecord) => (<button key={r.id} className="secondary" style={{ textAlign: "left" }} onClick={() => onMatch(prop.id, r.id)}>{r.id} · {r.title} · {r.operator}</button>))}{requirements.filter((r: RequirementRecord) => r.status === "Open").length === 0 && <p style={{ fontSize: 11, color: "var(--muted)" }}>No live requirements to match against.</p>}</div></div>}
     </>}
   </Modal>;
@@ -577,6 +594,7 @@ function Viewings({ role, viewings, shareWithPartner, partnerPickDate, confirmVi
 
         {role === "provider" && v.status === "Reschedule needed" && <div style={{ display: "flex", gap: 8 }}><button className="primary" style={{ fontSize: 11 }} onClick={() => onNewDates(v)}>Offer new dates</button><button className="secondary" style={{ fontSize: 11 }} onClick={() => setView("messages")}>Message BrightBridge</button></div>}
         {role === "provider" && v.status === "Confirmed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Everyone has been emailed. Documents on file for this property have been released to you.</p>}
+        {role === "partner" && v.status === "Confirmed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Viewing confirmed. BrightBridge will be in touch about next steps after the visit.</p>}
       </div>
     ))}
   </div>;
@@ -732,7 +750,7 @@ function UploadWizard({ step, setStep, forReq, initial, onCancel, onSubmit }: { 
   const [f, setF] = useState({
     name: initial?.name || "", area: initial?.area || "", propertyType: initial?.propertyType || "Family home (2 to 3 bed)",
     bedrooms: initial ? String(initial.bedrooms) : "", bathrooms: initial ? String(initial.bathrooms) : "", condition: initial?.condition || "Furnished",
-    rent: initial?.rent || "", availableFrom: initial?.availableFrom || "", description: initial?.description || "",
+    rent: initial?.rent || "", leaseOffer: initial?.leaseOffer || "", availableFrom: initial?.availableFrom || "", description: initial?.description || "",
   });
   const [docs, setDocs] = useState<DocItem[]>(() => {
     if (initial) return initial.documents;
@@ -763,6 +781,7 @@ function UploadWizard({ step, setStep, forReq, initial, onCancel, onSubmit }: { 
       <div className="field"><label>Bathrooms</label><input type="number" value={f.bathrooms} onChange={e => set("bathrooms", e.target.value)} placeholder="e.g. 3"/></div>
       <div className="field"><label>Condition</label><select value={f.condition} onChange={e => set("condition", e.target.value)}><option>Furnished</option><option>Unfurnished</option><option>Needs refurbishment</option></select></div>
       <div className="field"><label>Monthly rent</label><input required value={f.rent} onChange={e => set("rent", e.target.value)} placeholder="£3,450 pcm"/></div>
+      <div className="field"><label>Lease length offered</label><select value={f.leaseOffer} onChange={e => set("leaseOffer", e.target.value)}><option value="">Select</option><option>3 years minimum</option><option>5 years minimum</option><option>3 to 5 years</option><option>5 to 10 years</option><option>10+ years</option><option>Negotiable</option></select></div>
       <div className="field"><label>Available from</label><input type="date" onChange={e => set("availableFrom", new Date(e.target.value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))}/></div>
       <div className="field full"><label>About the property</label><textarea value={f.description} onChange={e => set("description", e.target.value)} placeholder="Layout, recent works, parking, outdoor space, anything a care provider would want to know"/></div>
     </div>}
@@ -799,6 +818,7 @@ function UploadWizard({ step, setStep, forReq, initial, onCancel, onSubmit }: { 
         <div><small>Bedrooms</small><strong>{f.bedrooms || "—"}</strong></div>
         <div><small>Bathrooms</small><strong>{f.bathrooms || "—"}</strong></div>
         <div><small>Monthly rent</small><strong>{f.rent || "—"}</strong></div>
+        <div><small>Lease offered</small><strong>{f.leaseOffer || "—"}</strong></div>
         <div><small>Available</small><strong>{f.availableFrom || "—"}</strong></div>
         <div><small>Documents uploaded</small><strong>{onFile.length} of {docs.length}</strong></div>
         <div><small>Required documents</small><strong>{docs.filter(d => REQUIRED_DOCS.includes(d.label) && d.state === "On file").length} of {REQUIRED_DOCS.length}</strong></div>
