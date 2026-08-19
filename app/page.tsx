@@ -24,7 +24,7 @@ const REQUIRED_DOCS = STANDARD_DOCS.slice(0, 5);
 /* Common extras care providers ask for, offered as a checklist so they aren't
    guessing at what we already collect. */
 const COMMON_EXTRA_DOCS = [
-  "Buildings insurance certificate", "Floor plan", "Asbestos survey", "Boiler service record",
+  "Buildings insurance certificate", "Asbestos survey", "Boiler service record",
   "PAT testing certificate", "Planning use class confirmation", "Recent works or refurbishment record",
 ];
 
@@ -173,7 +173,7 @@ export default function Home() {
   }
   function saveProperty(fields: any, docs: DocItem[], asDraft: boolean, forReqId: string | null, existingId?: string) {
     if (existingId) {
-      setProperties(prev => prev.map(p => p.id === existingId ? { ...p, ...fields, documents: docs, status: asDraft ? "Draft" : (p.status === "Draft" ? "Submitted" : p.status) } : p));
+      setProperties(prev => prev.map(p => p.id === existingId ? { ...p, ...fields, documents: docs, status: asDraft ? "Draft" : (["Draft", "Declined"].includes(p.status) ? "Submitted" : p.status), declineReason: ["Draft", "Declined"].includes(p.status) ? "" : p.declineReason } : p));
       notify(asDraft ? "Draft saved" : "Property updated and sent to BrightBridge");
     } else {
       const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", declineReason: "", matchedReq: forReqId, documents: docsForRequirement(forReqId, docs), passedOn: [], ...fields };
@@ -272,7 +272,7 @@ export default function Home() {
 
     <main className="main"><header><div><p>{roleName}</p><h1>{heading}</h1></div><div className="header-actions">{<label className="search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search"/></label>}<button className="notification" onClick={() => notify("You are all caught up")}>♢<i/></button><button className="avatar">{role === "bbc" ? "BB" : myName.split(" ").map(x => x[0]).slice(0, 2).join("")}</button></div></header>
 
-      {view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => { setEditingReq(null); setModal("requirement"); }} openProperty={openProperty} notify={notify} onUpload={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
+      {view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => { setEditingReq(null); setModal("requirement"); }} openProperty={openProperty} notify={notify} onUpload={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }} openReqDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }}/>}
       {view === "requirements" && <Requirements role={role} requirements={requirements} reqFilter={reqFilter} setReqFilter={setReqFilter} reqListFiltered={reqListFiltered} openDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }} create={() => { setEditingReq(null); setModal("requirement"); }} partnerSafeReq={partnerSafeReq}/>}
       {view === "properties" && <Properties role={role} items={filteredProps} requirements={requirements} openProperty={openProperty} add={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
       {view === "viewings" && <Viewings role={role} viewings={viewings} shareWithPartner={shareWithPartner} partnerPickDate={partnerPickDate} confirmViewing={confirmViewing} onDeclineDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("declineDates"); }} onNewDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("viewingRequest"); }} setView={setView}/>}
@@ -327,7 +327,7 @@ export default function Home() {
    Overview
 --------------------------------------------------------------------------- */
 
-function Overview({ role, setView, requirements, properties, viewings, openRequirement, openProperty, notify, onUpload }: any) {
+function Overview({ role, setView, requirements, properties, viewings, openRequirement, openProperty, notify, onUpload, openReqDetail }: any) {
   const isBBC = role === "bbc";
   const underReview = properties.filter((p: PropertyRecord) => p.status === "Submitted").length;
   const accepted = properties.filter((p: PropertyRecord) => ["Accepted", "Matched"].includes(p.status)).length;
@@ -359,7 +359,7 @@ function Overview({ role, setView, requirements, properties, viewings, openRequi
     </div>
 
     <section className="panel"><div className="panel-head"><div><h2>{role === "partner" ? "Live requirements" : "Your requirements"}</h2><p>{role === "partner" ? "Care sector demand you can submit properties against" : "Briefs currently with property partners"}</p></div><button className="text-button" onClick={() => setView("requirements")}>View all →</button></div>
-      <div className="requirements-row">{visibleReqs.slice(0, 3).map((r: RequirementRecord) => <article key={r.id} onClick={() => setView("requirements")}><div><span>{r.propertyType}</span><Status tone={reqTone(r.status)}>{r.status}</Status></div><h3>{r.title || "Untitled draft"}</h3><p>⌖ {r.area}</p><footer><strong>{r.budget}</strong><small>{r.matchedPropertyIds.length > 0 ? `${r.matchedPropertyIds.length} property matched` : `Needed by ${r.neededBy || "—"}`}</small></footer></article>)}</div></section>
+      <div className="requirements-row">{visibleReqs.slice(0, 3).map((r: RequirementRecord) => <article key={r.id} onClick={() => openReqDetail(r)}><div><span>{r.propertyType}</span><Status tone={reqTone(r.status)}>{r.status}</Status></div><h3>{r.title || "Untitled draft"}</h3><p>⌖ {r.area}</p><footer><strong>{r.budget}</strong><small>{r.matchedPropertyIds.length > 0 ? `${r.matchedPropertyIds.length} property matched` : `Needed by ${r.neededBy || "—"}`}</small></footer></article>)}</div></section>
   </div>;
 }
 
@@ -451,24 +451,38 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
 --------------------------------------------------------------------------- */
 
 function Properties({ role, items, requirements, openProperty, add }: any) {
+  const [propFilter, setPropFilter] = useState<"all" | "action" | "accepted" | "declined">("all");
   const visible = role === "provider"
     ? items.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed"].includes(p.status))
     : items.filter((p: PropertyRecord) => p.status !== "Withdrawn");
+  const filtered = role === "partner"
+    ? propFilter === "action" ? visible.filter((p: PropertyRecord) => ["Submitted", "Being obtained"].includes(p.status) || p.documents.some((d: DocItem) => d.state === "Being obtained"))
+      : propFilter === "accepted" ? visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status))
+      : propFilter === "declined" ? visible.filter((p: PropertyRecord) => p.status === "Declined")
+      : visible
+    : visible;
   const reqTitle = (id: string | null) => requirements.find((r: RequirementRecord) => r.id === id)?.title;
+  const needsAction = visible.filter((p: PropertyRecord) => p.status === "Submitted" || p.documents.some((d: DocItem) => d.state === "Being obtained")).length;
 
   return <div className="page-content">
-    <div className="page-toolbar"><p>{role === "bbc" ? "Review, accept and match every submitted property." : role === "provider" ? "Properties BrightBridge has matched to your requirements." : "Your submissions and their status. Withdraw any property that is no longer available."}</p>{role === "partner" && <button className="primary" onClick={add}>＋ Submit property</button>}</div>
-    <div className="property-cards">{visible.map((p: PropertyRecord) => <article key={p.id} onClick={() => openProperty(p)}>
+    <div className="page-toolbar"><p>{role === "bbc" ? "Review, accept and match every submitted property." : role === "provider" ? "Properties BrightBridge has matched to your requirements." : "Your submissions and their status."}</p>{role === "partner" && <button className="primary" onClick={add}>＋ Submit property</button>}</div>
+    {role === "partner" && <section className="panel" style={{ marginBottom: 0, borderBottom: "none", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}><div className="filterbar">
+      <button className={propFilter === "all" ? "selected" : ""} onClick={() => setPropFilter("all")}>All <b>{visible.length}</b></button>
+      <button className={propFilter === "action" ? "selected" : ""} onClick={() => setPropFilter("action")}>Needs action <b>{needsAction}</b></button>
+      <button className={propFilter === "accepted" ? "selected" : ""} onClick={() => setPropFilter("accepted")}>Accepted <b>{visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status)).length}</b></button>
+      <button className={propFilter === "declined" ? "selected" : ""} onClick={() => setPropFilter("declined")}>Declined <b>{visible.filter((p: PropertyRecord) => p.status === "Declined").length}</b></button>
+    </div></section>}
+    <div className="property-cards">{filtered.map((p: PropertyRecord) => <article key={p.id} onClick={() => openProperty(p)}>
       <div className="property-image"><span>{docSummary(p.documents)}</span><div>⌂</div></div>
       <div className="card-content">
         <div><Status tone={propTone(p.status)}>{p.status}</Status><small>{p.id}</small></div>
         <h3>{p.name || "Untitled draft"}</h3>
         <p>{p.area}</p>
         {p.matchedReq && <p style={{ marginTop: 6, color: "var(--purple)", fontWeight: 700 }}>{role === "provider" ? "For" : "Matched to"} {p.matchedReq}{reqTitle(p.matchedReq) ? ` · ${reqTitle(p.matchedReq)}` : ""}</p>}
-        <div className="property-meta"><span><b>{p.bedrooms}</b> beds</span><span><b>{p.bathrooms}</b> baths</span><span><b>{p.rent}</b></span></div>
+        <div className="property-meta"><span><b>{p.bedrooms}</b> beds</span><span><b>{p.bathrooms}</b> baths</span><span><b>{p.rent}</b></span>{p.leaseOffer && <span>{p.leaseOffer}</span>}</div>
         <button className="secondary">View property →</button>
       </div></article>)}
-      {visible.length === 0 && <div style={{ padding: 24, color: "var(--muted)", fontSize: 12 }}>Nothing here yet.</div>}</div>
+      {filtered.length === 0 && <div style={{ padding: 24, color: "var(--muted)", fontSize: 12 }}>{propFilter === "all" ? "Nothing here yet. Submit a property to get started." : "Nothing in this filter."}</div>}</div>
   </div>;
 }
 
@@ -490,9 +504,17 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
   const partnerActions = role === "partner" && !["Withdrawn", "Declined"].includes(prop.status) ? [{ icon: "✎", label: "Edit", onClick: onEdit }, { icon: "⊘", label: "Withdraw, no longer available", onClick: onWithdraw, danger: true }] : [];
 
   return <Modal title={`${prop.id} · Property`} onClose={onClose} actions={partnerActions} wide>
-    {role === "partner" && prop.status === "Declined" && prop.declineReason && <div style={{ margin: "16px 24px 0", padding: "14px 16px", borderRadius: 10, background: "#fdeceb", fontSize: 12, lineHeight: 1.6 }}><strong style={{ display: "block", marginBottom: 4 }}>BrightBridge declined this property</strong>{prop.declineReason}</div>}
+    {role === "partner" && prop.status === "Declined" && <div style={{ margin: "16px 24px 0", padding: "14px 16px", borderRadius: 10, background: "#fdeceb", fontSize: 12, lineHeight: 1.6 }}><strong style={{ display: "block", marginBottom: 4 }}>BrightBridge declined this property</strong>{prop.declineReason || "No reason given."}<div style={{ marginTop: 10 }}><button className="secondary" style={{ fontSize: 11 }} onClick={onEdit}>Edit and re-submit</button></div></div>}
     <div className="property-hero"><div><Status tone={propTone(prop.status)}>{prop.status}</Status><h2>{prop.name || "Untitled draft"}</h2><p>{prop.area} · {prop.bedrooms} bedrooms · {prop.bathrooms} bathrooms · {prop.condition} · {prop.rent}{prop.leaseOffer ? ` · ${prop.leaseOffer}` : ""}</p>{prop.matchedReq && role === "partner" && (() => { const mr = requirements.find((r: RequirementRecord) => r.id === prop.matchedReq); return mr ? <p style={{ fontSize: 12, marginTop: 4, color: "var(--purple)" }}>Matched to {mr.id}: {mr.title} · {mr.area} · {mr.bedrooms} beds · {mr.budget}</p> : <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>; })()}
     {prop.matchedReq && role !== "partner" && <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>}</div><div className="property-art">⌂</div></div>
+
+    {role === "partner" && <div style={{ padding: "0 24px" }}><div style={{ padding: "12px 16px", borderRadius: 10, fontSize: 12, lineHeight: 1.6, background: prop.status === "Submitted" ? "var(--purple-soft)" : prop.status === "Accepted" ? "#e8f5e9" : prop.status === "Matched" ? "#e8f5e9" : prop.status === "Viewing requested" ? "var(--amber-bg)" : prop.status === "Viewing confirmed" ? "#e8f5e9" : "transparent", color: "var(--ink)", marginBottom: 4 }}>
+      {prop.status === "Submitted" && "BrightBridge is reviewing this property. You will hear back within two working days."}
+      {prop.status === "Accepted" && "Property accepted. BrightBridge is looking for the right care provider match."}
+      {prop.status === "Matched" && "A care provider is reviewing this property against their requirement."}
+      {prop.status === "Viewing requested" && "The care provider wants to view this property. BrightBridge will share the dates with you."}
+      {prop.status === "Viewing confirmed" && "Viewing is booked. Check the Viewings tab for the confirmed date."}
+    </div></div>}
 
     <div className="modal-section"><h3>Photos</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -568,7 +590,7 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
 
 function Viewings({ role, viewings, shareWithPartner, partnerPickDate, confirmViewing, onDeclineDates, onNewDates, setView }: any) {
   const visible = role === "partner" ? viewings.filter((v: ViewingRecord) => v.status !== "Requested") : viewings;
-  if (visible.length === 0) return <div className="page-content"><div className="page-toolbar"><p>No viewings yet. {role === "provider" ? "Open a matched property to request one." : ""}</p></div></div>;
+  if (visible.length === 0) return <div className="page-content"><div className="page-toolbar"><p>{role === "provider" ? "No viewings yet. Open a matched property to request one." : role === "partner" ? "No viewing requests yet. When a care provider wants to see one of your properties, BrightBridge shares the dates with you here." : "No viewings to coordinate."}</p></div></div>;
 
   return <div className="page-content">
     <div className="page-toolbar"><p>{role === "bbc" ? "Coordinate every viewing between the care provider and the property source." : role === "partner" ? "Viewing requests BrightBridge has shared with you." : "Your viewing requests, from first ask to a confirmed date."}</p></div>
@@ -603,10 +625,16 @@ function Viewings({ role, viewings, shareWithPartner, partnerPickDate, confirmVi
 function Messages({ role, myName }: any) {
   const threads = role === "bbc" ? ["Willow Care Group", "Kush Properties Ltd", "Walsall MBC"] : ["BrightBridge team"];
   const [active, setActive] = useState(0);
+  const providerChat = { incoming: "The insurance certificate you asked for is with the property source now, I will send it across as soon as it lands.", outgoing: "Thank you, no rush before the viewing." };
+  const partnerChat = { incoming: "We have a care provider interested in the Penn property. Could you upload the fire alarm installation certificate when you get a chance?", outgoing: "Sure, I will get that over today." };
+  const bbcChat = { incoming: "Hi, just checking in on the Penn viewing, has a date been confirmed?", outgoing: "Yes, shared with the property source. Waiting on their availability." };
+  const chat = role === "provider" ? providerChat : role === "partner" ? partnerChat : bbcChat;
+  const preview = role === "provider" ? "About the Penn viewing…" : role === "partner" ? "Fire alarm cert for Penn…" : "Checking in on Penn…";
+
   return <div className="page-content message-layout">
-    <section className="conversation-list"><div className="message-search">⌕ Search conversations</div>{threads.map((p, i) => <button className={active === i ? "active" : ""} onClick={() => setActive(i)} key={p}><span>{p.split(" ").map(x => x[0]).slice(0, 2).join("")}</span><div><strong>{p}</strong><p>{i === 0 ? "About the Penn viewing…" : "Thanks, sending that over…"}</p></div><small>{i === 0 ? "09:42" : "Yesterday"}</small></button>)}</section>
-    <section className="chat"><header><div className="avatar">{threads[active].split(" ").map(x => x[0]).slice(0, 2).join("")}</div><div><strong>{threads[active]}</strong><p>{role === "bbc" ? "Regarding an active viewing" : `Your BrightBridge contact, ${myName}`}</p></div></header>
-      <div className="chat-body"><span className="date-label">Today</span><div className="bubble incoming">The insurance certificate you asked for is with the property source now, I will send it across as soon as it lands.</div><div className="bubble outgoing">Thank you, no rush before the viewing.</div></div>
+    <section className="conversation-list"><div className="message-search">⌕ Search conversations</div>{threads.map((p, i) => <button className={active === i ? "active" : ""} onClick={() => setActive(i)} key={p}><span>{p.split(" ").map(x => x[0]).slice(0, 2).join("")}</span><div><strong>{p}</strong><p>{i === 0 ? preview : "Thanks, sending that over…"}</p></div><small>{i === 0 ? "09:42" : "Yesterday"}</small></button>)}</section>
+    <section className="chat"><header><div className="avatar">{threads[active].split(" ").map(x => x[0]).slice(0, 2).join("")}</div><div><strong>{threads[active]}</strong><p>{role === "bbc" ? "Regarding an active viewing" : "Your BrightBridge contact"}</p></div></header>
+      <div className="chat-body"><span className="date-label">Today</span><div className="bubble incoming">{chat.incoming}</div><div className="bubble outgoing">{chat.outgoing}</div></div>
       <form className="composer" onSubmit={e => e.preventDefault()}><button>＋</button><input placeholder="Write a message"/><button className="send">↑</button></form></section>
   </div>;
 }
@@ -625,6 +653,21 @@ function Settings({ role }: any) {
         <div className="form-actions"><button className="primary">Save changes</button></div>
       </div>
     </section>
+    {role === "partner" && <section className="panel" style={{ marginTop: 16, padding: 24 }}>
+      <h2>Coverage and property types</h2>
+      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>Requirements are only sent to you for the areas and property types you cover. Update these if your reach has changed.</p>
+      <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Coverage areas</h3>
+      <div className="tag-row">{["West Midlands", "Greater Manchester"].map(t => <span key={t}>{t}</span>)}</div>
+      <h3 style={{ fontSize: 12, fontWeight: 700, margin: "16px 0 8px" }}>Property types</h3>
+      <div className="tag-row">{["HMO (up to 6 bed)", "Larger format (7+ bed)"].map(t => <span key={t}>{t}</span>)}</div>
+      <button className="secondary" style={{ marginTop: 16 }}>Edit coverage</button>
+    </section>}
+    {role === "provider" && <section className="panel" style={{ marginTop: 16, padding: 24 }}>
+      <h2>Services and coverage</h2>
+      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>What you deliver and where you need property.</p>
+      <div className="tag-row">{["Supported living", "West Midlands", "Staffordshire"].map(t => <span key={t}>{t}</span>)}</div>
+      <button className="secondary" style={{ marginTop: 16 }}>Edit services and coverage</button>
+    </section>}
   </div>;
 }
 
