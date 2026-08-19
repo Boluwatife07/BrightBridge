@@ -38,7 +38,7 @@ const standardDocs = (onFile: boolean[] = []): DocItem[] => STANDARD_DOCS.map((l
 
 type PropertyRecord = {
   id: string; name: string; area: string; propertyType: string; bedrooms: string | number; bathrooms: string | number;
-  condition: string; rent: string; leaseOffer: string; availableFrom: string; description: string;
+  condition: string; rent: string; leaseOffer: string; availableFrom: string; description: string; images: string[];
   status: string; declineReason: string; matchedReq: string | null; documents: DocItem[];
   passedOn: { reqId: string; reason: string }[];
 };
@@ -58,15 +58,16 @@ type ViewingRecord = {
 };
 
 const seedRequirements: RequirementRecord[] = [
-  { id: "REQ-1048", title: "6 bed supported living home", area: "Wolverhampton", serviceType: "Supported living", residentGroup: "Adults (18+)", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, capacity: "5 to 6 residents", budget: "£3,600 pcm", leaseMin: "5 years", leaseMax: "10 years", neededBy: "12 Oct 2026", accessibility: ["Ground floor bedroom", "Step free access"], features: ["Outdoor space", "Off street parking"], extraDocs: ["Buildings insurance certificate"], notes: "", status: "Open", operator: "Willow Care Group", matchedPropertyIds: ["PROP-231"], postedOn: "28 Jul 2026" },
+  { id: "REQ-1048", title: "6 bed supported living home", area: "Wolverhampton", serviceType: "Supported living", residentGroup: "Adults (18+)", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, capacity: "5 to 6 residents", budget: "£3,600 pcm", leaseMin: "5 years", leaseMax: "10 years", neededBy: "12 Oct 2026", accessibility: ["Ground floor bedroom", "Step free access"], features: ["Outdoor space", "Off street parking"], extraDocs: ["Buildings insurance certificate"], notes: "", status: "Open", operator: "Willow Care Group", matchedPropertyIds: ["PROP-231", "PROP-234"], postedOn: "28 Jul 2026" },
   { id: "REQ-1044", title: "Children's home with garden", area: "Stoke-on-Trent", serviceType: "Children's home", residentGroup: "Young people (16 to 25)", propertyType: "Larger format (7+ bed)", bedrooms: 7, bathrooms: 3, capacity: "6 to 7 residents", budget: "£4,200 pcm", leaseMin: "5 years", leaseMax: "", neededBy: "1 Nov 2026", accessibility: [], features: ["Outdoor space", "Off street parking"], extraDocs: ["Planning use class confirmation"], notes: "", status: "Open", operator: "Willow Care Group", matchedPropertyIds: [], postedOn: "4 Aug 2026" },
   { id: "REQ-1039", title: "Accessible 4 bed bungalow", area: "Walsall", serviceType: "Supported living", residentGroup: "Adults (18+)", propertyType: "Family home (2 to 3 bed)", bedrooms: 4, bathrooms: 2, capacity: "3 to 4 residents", budget: "£3,100 pcm", leaseMin: "5 years", leaseMax: "", neededBy: "20 Sep 2026", accessibility: ["Wheelchair accessible", "Wet room", "Wider doorways"], features: [], extraDocs: [], notes: "", status: "Draft", operator: "Willow Care Group", matchedPropertyIds: [], postedOn: "" },
 ];
 
 const seedProperties: PropertyRecord[] = [
-  { id: "PROP-231", name: "Detached home, Penn", area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", leaseOffer: "5 to 10 years", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false, false, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [] },
-  { id: "PROP-229", name: "Corner house, Hanley", area: "Stoke-on-Trent, ST1", propertyType: "Larger format (7+ bed)", bedrooms: 7, bathrooms: 2, condition: "Furnished", rent: "£3,900 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Oct 2026", description: "", status: "Submitted", declineReason: "", matchedReq: null, documents: standardDocs([true, true, false, true, false, false, false, false]), passedOn: [] },
-  { id: "PROP-226", name: "Accessible bungalow", area: "Walsall, WS3", propertyType: "Family home (2 to 3 bed)", bedrooms: 4, bathrooms: 2, condition: "Unfurnished", rent: "£2,950 pcm", leaseOffer: "3 to 7 years", availableFrom: "Immediate", description: "", status: "Accepted", declineReason: "", matchedReq: null, documents: standardDocs([true, false, false, false, false, false, false, false]), passedOn: [] },
+  { id: "PROP-231", name: "Detached home, Penn", images: ["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop"], area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", leaseOffer: "5 to 10 years", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false, false, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [] },
+  { id: "PROP-234", name: "Semi-detached, Bilston", images: ["https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560185127-6a3c7c4e7261?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop"], area: "Wolverhampton, WV14", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 2, condition: "Furnished", rent: "£3,100 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Sep 2026", description: "End of terrace converted to six bedrooms across two floors. Close to bus routes. Small rear yard.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: standardDocs([true, true, true, true, false, false, false, false]), passedOn: [] },
+  { id: "PROP-229", name: "Corner house, Hanley", images: ["https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600210492493-0946911123ea?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600573472556-e636c2acda9e?w=400&h=300&fit=crop"], area: "Stoke-on-Trent, ST1", propertyType: "Larger format (7+ bed)", bedrooms: 7, bathrooms: 2, condition: "Furnished", rent: "£3,900 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Oct 2026", description: "", status: "Submitted", declineReason: "", matchedReq: "REQ-1044", documents: standardDocs([true, true, false, true, false, false, false, false]), passedOn: [] },
+  { id: "PROP-226", name: "Accessible bungalow", images: ["https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600047509782-20d39509f26d?w=400&h=300&fit=crop"], area: "Walsall, WS3", propertyType: "Family home (2 to 3 bed)", bedrooms: 4, bathrooms: 2, condition: "Unfurnished", rent: "£2,950 pcm", leaseOffer: "3 to 7 years", availableFrom: "Immediate", description: "", status: "Accepted", declineReason: "", matchedReq: null, documents: standardDocs([true, false, false, false, false, false, false, false]), passedOn: [] },
 ];
 
 function Status({ children, tone = "purple" }: { children: React.ReactNode; tone?: "purple" | "green" | "amber" | "grey" | "red" }) { return <span className={`status ${tone}`}>{children}</span>; }
@@ -176,7 +177,7 @@ export default function Home() {
       setProperties(prev => prev.map(p => p.id === existingId ? { ...p, ...fields, documents: docs, status: asDraft ? "Draft" : (["Draft", "Declined"].includes(p.status) ? "Submitted" : p.status), declineReason: ["Draft", "Declined"].includes(p.status) ? "" : p.declineReason } : p));
       notify(asDraft ? "Draft saved" : "Property updated and sent to BrightBridge");
     } else {
-      const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", declineReason: "", matchedReq: forReqId, documents: docsForRequirement(forReqId, docs), passedOn: [], ...fields };
+      const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", declineReason: "", matchedReq: forReqId, images: [], documents: docsForRequirement(forReqId, docs), passedOn: [], ...fields };
       setProperties(prev => [prop, ...prev]);
       notify(asDraft ? "Saved as a draft, nothing has been sent to BrightBridge" : (forReqId ? `Property submitted against ${forReqId}, BrightBridge will review it` : "Property submitted, BrightBridge will review it"));
     }
@@ -186,7 +187,7 @@ export default function Home() {
   function decideProperty(id: string, decision: "Accepted" | "Declined", reason?: string) { setProperties(prev => prev.map(p => p.id === id ? { ...p, status: decision, declineReason: reason || "" } : p)); notify(decision === "Accepted" ? "Property accepted, ready to match to a requirement" : "Property declined, the partner has been told why"); setModal(null); }
   function matchProperty(propId: string, reqId: string) {
     setProperties(prev => prev.map(p => p.id !== propId ? p : { ...p, status: "Matched", matchedReq: reqId, documents: docsForRequirement(reqId, p.documents) }));
-    setRequirements(prev => prev.map(r => r.id === reqId ? { ...r, matchedPropertyIds: [...r.matchedPropertyIds, propId] } : r));
+    setRequirements(prev => prev.map(r => r.id === reqId ? { ...r, matchedPropertyIds: r.matchedPropertyIds.includes(propId) ? r.matchedPropertyIds : [...r.matchedPropertyIds, propId] } : r));
     notify(`Matched to ${reqId}, the care provider has been notified`);
     setModal(null);
   }
@@ -352,14 +353,14 @@ function Overview({ role, setView, requirements, properties, viewings, openRequi
 
     <div className="content-grid">
       <section className="panel"><div className="panel-head"><div><h2>{isBBC ? "Property review queue" : role === "provider" ? "Properties for your requirements" : "Your recent submissions"}</h2><p>{isBBC ? "Review submissions before they can be matched" : role === "provider" ? "Matched by BrightBridge, waiting on you" : "Status of properties you have submitted"}</p></div><button className="text-button" onClick={() => setView("properties")}>View all →</button></div>
-        <div>{visibleProps.slice(0, 3).map((p: PropertyRecord) => <div className="property-row" key={p.id} onClick={() => openProperty(p)}><div className="building-thumb">⌂</div><div className="row-main"><strong>{p.name}</strong><span>{p.area} · {p.bedrooms} beds{p.matchedReq ? ` · ${p.matchedReq}` : ""}</span></div><div className="match"><b>{docSummary(p.documents).split(" ")[0]}</b><span>docs</span></div><Status tone={propTone(p.status)}>{p.status}</Status>{isBBC && p.status === "Submitted" && <button className="mini-action" onClick={e => { e.stopPropagation(); openProperty(p); }}>Review</button>}</div>)}
+        <div>{visibleProps.slice(0, 3).map((p: PropertyRecord) => <div className="property-row" key={p.id} onClick={() => openProperty(p)}><div className="building-thumb" style={{ overflow: "hidden" }}>{p.images?.[0] ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }}/> : <span>⌂</span>}</div><div className="row-main"><strong>{p.name}</strong><span>{p.area} · {p.bedrooms} beds{p.matchedReq ? ` · ${p.matchedReq}` : ""}</span></div><div className="match"><b>{docSummary(p.documents).split(" ")[0]}</b><span>docs</span></div><Status tone={propTone(p.status)}>{p.status}</Status>{isBBC && p.status === "Submitted" && <button className="mini-action" onClick={e => { e.stopPropagation(); openProperty(p); }}>Review</button>}</div>)}
         {visibleProps.length === 0 && <div style={{ padding: 24, color: "var(--muted)", fontSize: 12 }}>Nothing here yet. {role === "provider" ? "Submit a requirement and matches will appear." : ""}</div>}</div></section>
 
       <section className="panel"><div className="panel-head"><div><h2>Viewings</h2><p>Live coordination</p></div><button className="text-button" onClick={() => setView("viewings")}>View all →</button></div><div className="pipeline">{viewings.slice(0, 4).map((v: ViewingRecord, i: number) => <div key={v.id}><span className={`pipeline-dot dot-${i % 4}`}></span><div><strong>{v.propertyName}</strong><p>{v.status}</p><small>{v.confirmedDate || v.partnerSelectedDate || v.candidateDates[0]}</small></div></div>)}{viewings.length === 0 && <div style={{ padding: 20, color: "var(--muted)", fontSize: 11 }}>No viewings arranged yet.</div>}</div></section>
     </div>
 
     <section className="panel"><div className="panel-head"><div><h2>{role === "partner" ? "Live requirements" : "Your requirements"}</h2><p>{role === "partner" ? "Care sector demand you can submit properties against" : "Briefs currently with property partners"}</p></div><button className="text-button" onClick={() => setView("requirements")}>View all →</button></div>
-      <div className="requirements-row">{visibleReqs.slice(0, 3).map((r: RequirementRecord) => <article key={r.id} onClick={() => openReqDetail(r)}><div><span>{r.propertyType}</span><Status tone={reqTone(r.status)}>{r.status}</Status></div><h3>{r.title || "Untitled draft"}</h3><p>⌖ {r.area}</p><footer><strong>{r.budget}</strong><small>{r.matchedPropertyIds.length > 0 ? `${r.matchedPropertyIds.length} property matched` : `Needed by ${r.neededBy || "—"}`}</small></footer></article>)}</div></section>
+      <div className="requirements-row">{visibleReqs.slice(0, 3).map((r: RequirementRecord) => <article key={r.id} onClick={() => openReqDetail(r)}><div><span>{r.propertyType}</span><Status tone={reqTone(r.status)}>{r.status}</Status></div><h3>{r.title || "Untitled draft"}</h3><p>⌖ {r.area}</p><footer><strong>{r.budget}</strong><small>{r.matchedPropertyIds.length > 0 ? `${r.matchedPropertyIds.length} propert${r.matchedPropertyIds.length === 1 ? "y" : "ies"} matched` : `Needed by ${r.neededBy || "—"}`}</small></footer></article>)}</div></section>
   </div>;
 }
 
@@ -426,10 +427,11 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
 
     {role !== "partner" && <div className="modal-section" style={{ borderTop: "1px solid var(--line)" }}>
       <h3>Matched properties {matched.length > 0 && `(${matched.length})`}</h3>
+      {matched.length > 1 && role === "provider" && <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>Multiple properties have been matched to this brief. Review each one and request a viewing for any that look right, or pass on the ones that do not.</p>}
       {matched.length === 0
         ? <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{req.status === "Open" ? "Nothing matched yet. BrightBridge checks every submission against this brief and you will be emailed the moment one lands." : "This requirement is not live yet."}</p>
         : matched.map((p: PropertyRecord) => <div className="property-row" key={p.id} style={{ paddingLeft: 0, paddingRight: 0 }} onClick={() => onOpenProperty(p)}>
-            <div className="building-thumb">⌂</div>
+            <div className="building-thumb" style={{ overflow: "hidden" }}>{p.images?.[0] ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }}/> : <span>⌂</span>}</div>
             <div className="row-main"><strong>{p.name}</strong><span>{p.area} · {p.bedrooms} beds · {p.rent}</span></div>
             <Status tone={propTone(p.status)}>{p.status}</Status>
             <button className="mini-action" onClick={e => { e.stopPropagation(); onOpenProperty(p); }}>Open</button>
@@ -440,7 +442,20 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
       {role === "provider" && req.status !== "Withdrawn" && <button className="secondary" onClick={onEdit}>Edit</button>}
       {role === "provider" && req.status === "Open" && <button className="secondary" style={{ color: "#c23b3b" }} onClick={onWithdraw}>Withdraw</button>}
       {role === "provider" && req.status === "Draft" && <button className="primary" onClick={onPublish}>Submit requirement</button>}
-      {role === "partner" && req.status === "Open" && (() => { const already = properties.filter((p: PropertyRecord) => p.matchedReq === req.id && p.status !== "Withdrawn"); return already.length > 0 ? <p style={{ fontSize: 12, color: "var(--purple)", fontWeight: 600 }}>You have submitted {already[0].name} ({already[0].id}) against this requirement.</p> : <button className="primary" onClick={onSubmitProperty}>Submit a matching property</button>; })()}
+      {role === "partner" && req.status === "Open" && (() => {
+        const mine = properties.filter((p: PropertyRecord) => p.matchedReq === req.id && p.status !== "Withdrawn");
+        return <div>
+          {mine.length > 0 && <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Your submissions against this requirement ({mine.length})</p>
+            {mine.map((p: PropertyRecord) => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: "var(--surface)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>⌂</div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 10, color: "var(--muted)" }}>{p.id} · {p.area} · {p.rent}</div></div>
+              <Status tone={propTone(p.status)}>{p.status}</Status>
+            </div>)}
+          </div>}
+          <button className="primary" onClick={onSubmitProperty}>{mine.length > 0 ? "Submit another property" : "Submit a property"}</button>
+        </div>;
+      })()}
     </div>
   </Modal>;
 }
@@ -472,7 +487,7 @@ function Properties({ role, items, requirements, openProperty, add }: any) {
       <button className={propFilter === "declined" ? "selected" : ""} onClick={() => setPropFilter("declined")}>Declined <b>{visible.filter((p: PropertyRecord) => p.status === "Declined").length}</b></button>
     </div></section>}
     <div className="property-cards">{filtered.map((p: PropertyRecord) => <article key={p.id} onClick={() => openProperty(p)}>
-      <div className="property-image"><span>{docSummary(p.documents)}</span><div>⌂</div></div>
+      <div className="property-image">{p.images?.[0] ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/> : <div>⌂</div>}<span>{docSummary(p.documents)}</span></div>
       <div className="card-content">
         <div><Status tone={propTone(p.status)}>{p.status}</Status><small>{p.id}</small></div>
         <h3>{p.name || "Untitled draft"}</h3>
@@ -505,7 +520,7 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
   return <Modal title={`${prop.id} · Property`} onClose={onClose} actions={partnerActions} wide>
     {role === "partner" && prop.status === "Declined" && <div style={{ margin: "16px 24px 0", padding: "14px 16px", borderRadius: 10, background: "#fdeceb", fontSize: 12, lineHeight: 1.6 }}><strong style={{ display: "block", marginBottom: 4 }}>BrightBridge declined this property</strong>{prop.declineReason || "No reason given."}<div style={{ marginTop: 10 }}><button className="secondary" style={{ fontSize: 11 }} onClick={onEdit}>Edit and re-submit</button></div></div>}
     <div className="property-hero"><div><Status tone={propTone(prop.status)}>{prop.status}</Status><h2>{prop.name || "Untitled draft"}</h2><p>{prop.area} · {prop.bedrooms} bedrooms · {prop.bathrooms} bathrooms · {prop.condition} · {prop.rent}{prop.leaseOffer ? ` · ${prop.leaseOffer}` : ""}</p>{prop.matchedReq && role === "partner" && (() => { const mr = requirements.find((r: RequirementRecord) => r.id === prop.matchedReq); return mr ? <p style={{ fontSize: 12, marginTop: 4, color: "var(--purple)" }}>Matched to {mr.id}: {mr.title} · {mr.area} · {mr.bedrooms} beds · {mr.budget}</p> : <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>; })()}
-    {prop.matchedReq && role !== "partner" && <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>}</div><div className="property-art">⌂</div></div>
+    {prop.matchedReq && role !== "partner" && <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>}</div><div className="property-art" style={{ overflow: "hidden" }}>{prop.images?.[0] ? <img src={prop.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 12 }}/> : <span style={{ fontSize: 48 }}>⌂</span>}</div></div>
 
     {role === "partner" && <div style={{ padding: "0 24px" }}><div style={{ padding: "12px 16px", borderRadius: 10, fontSize: 12, lineHeight: 1.6, background: prop.status === "Submitted" ? "var(--purple-soft)" : prop.status === "Accepted" ? "#e8f5e9" : prop.status === "Matched" ? "#e8f5e9" : prop.status === "Viewing requested" ? "var(--amber-bg)" : prop.status === "Viewing confirmed" ? "#e8f5e9" : "transparent", color: "var(--ink)", marginBottom: 4 }}>
       {prop.status === "Submitted" && "BrightBridge is reviewing this property. You will hear back within two working days."}
@@ -517,8 +532,10 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
 
     <div className="modal-section"><h3>Photos</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-        {["Living room", "Kitchen", "Bedroom 1", "Bedroom 2", "Bathroom", "Exterior"].map(label => (
-          <div key={label} style={{ aspectRatio: "4/3", background: "linear-gradient(135deg, var(--surface), #e9e7ec)", borderRadius: 8, display: "flex", alignItems: "flex-end", padding: 8, fontSize: 10, color: "var(--muted)", fontWeight: 600 }}>{label}</div>
+        {(prop.images?.length > 0 ? prop.images : [null, null, null, null, null, null]).map((src: string | null, i: number) => (
+          <div key={i} style={{ aspectRatio: "4/3", background: "linear-gradient(135deg, var(--surface), #e9e7ec)", borderRadius: 8, overflow: "hidden", position: "relative" }}>
+            {src ? <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 20, color: "var(--muted)" }}>⌂</div>}
+          </div>
         ))}
       </div>
     </div>
@@ -574,7 +591,9 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
       {prop.passedOn.length > 0 && role === "bbc" && <div className="modal-section"><h3>Passed on</h3>{prop.passedOn.map((x: any, i: number) => <p key={i} style={{ fontSize: 11, color: "var(--muted)" }}>{x.reqId}: {x.reason}</p>)}</div>}
 
       {role === "bbc" && prop.status === "Submitted" && <DecidePropertyPanel propId={prop.id} onDecide={onDecide}/>}
-      {role === "bbc" && prop.status === "Accepted" && <div className="modal-section"><h3>Match to a requirement</h3><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{requirements.filter((r: RequirementRecord) => r.status === "Open").map((r: RequirementRecord) => (<button key={r.id} className="secondary" style={{ textAlign: "left" }} onClick={() => onMatch(prop.id, r.id)}>{r.id} · {r.title} · {r.operator}</button>))}{requirements.filter((r: RequirementRecord) => r.status === "Open").length === 0 && <p style={{ fontSize: 11, color: "var(--muted)" }}>No live requirements to match against.</p>}</div></div>}
+      {role === "bbc" && prop.status === "Accepted" && <div className="modal-section"><h3>Match to a requirement</h3>
+        {prop.matchedReq && <p style={{ fontSize: 11, color: "var(--purple)", marginBottom: 8 }}>This property was submitted against {prop.matchedReq}.</p>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{requirements.filter((r: RequirementRecord) => r.status === "Open").map((r: RequirementRecord) => (<button key={r.id} className="secondary" style={{ textAlign: "left", fontWeight: r.id === prop.matchedReq ? 700 : 400, borderColor: r.id === prop.matchedReq ? "var(--purple)" : undefined }} onClick={() => onMatch(prop.id, r.id)}>{r.id} · {r.title} · {r.area} · {r.bedrooms} beds · {r.budget}{r.matchedPropertyIds.length > 0 ? ` · ${r.matchedPropertyIds.length} already matched` : ""}</button>))}{requirements.filter((r: RequirementRecord) => r.status === "Open").length === 0 && <p style={{ fontSize: 11, color: "var(--muted)" }}>No live requirements to match against.</p>}</div></div>}
     </>}
   </Modal>;
 }
