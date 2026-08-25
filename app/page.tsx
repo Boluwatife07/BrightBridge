@@ -78,7 +78,7 @@ const seedRequirements: RequirementRecord[] = [
 ];
 
 const seedProperties: PropertyRecord[] = [
-  { id: "PROP-231", name: "Detached home, Penn", images: ["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop"], area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", leaseOffer: "5 to 10 years", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false, false, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [],
+  { id: "PROP-231", name: "Detached home, Penn", images: ["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop"], area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", leaseOffer: "5 to 10 years", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Schedule of works", declineReason: "", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false, false, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [],
     dealStage: "Schedule of works", viewingOutcomeNote: "Provider confirmed the property meets their requirement, keen to proceed.",
     headsOfTerms: { fileName: "Willow_Care_HoT_Penn.pdf", uploadedOn: "5 Aug 2026", rent: "£3,450 pcm", leaseLength: "10 years", breakClause: "Mutual break at year 5", repairsResponsibility: "Landlord: structure and exterior. Provider: internal decoration and fixtures.", rentReview: "RPI-linked, reviewed every 3 years", worksRequired: "Fire door upgrade to bedrooms, emergency lighting in hallway", status: "Agreed", counterFileName: "", counterNote: "" },
     worksItems: [
@@ -277,7 +277,7 @@ export default function Home() {
       applyDeal(propId, () => ({ dealStage: "Not proceeding", viewingOutcomeNote: note, matchedReq: null, status: "Accepted" }));
       notify("Outcome recorded, property returned to the accepted pool");
     } else {
-      applyDeal(propId, () => ({ dealStage: "Heads of terms", viewingOutcomeNote: note }));
+      applyDeal(propId, () => ({ dealStage: "Heads of terms", viewingOutcomeNote: note, status: "Heads of terms" }));
       notify("Outcome recorded, waiting on heads of terms from the care provider");
     }
   }
@@ -294,7 +294,7 @@ export default function Home() {
     notify("Counter sent to BrightBridge");
   }
   function agreeHeadsOfTerms(propId: string) {
-    applyDeal(propId, p => ({ headsOfTerms: p.headsOfTerms ? { ...p.headsOfTerms, status: "Agreed" } : null, dealStage: "Schedule of works" }));
+    applyDeal(propId, p => ({ headsOfTerms: p.headsOfTerms ? { ...p.headsOfTerms, status: "Agreed" } : null, dealStage: "Schedule of works", status: "Schedule of works" }));
     notify("Terms agreed, moving to schedule of works");
   }
   function addWorksItem(propId: string, item: Omit<WorksItem, "id" | "status">) {
@@ -305,7 +305,7 @@ export default function Home() {
     applyDeal(propId, p => ({ worksItems: p.worksItems.map(w => w.id === workId ? { ...w, status: w.status === "Complete" ? "Outstanding" : "Complete" } : w) }));
   }
   function sendLease(propId: string) {
-    applyDeal(propId, () => ({ dealStage: "Lease sent" }));
+    applyDeal(propId, () => ({ dealStage: "Lease sent", status: "Lease sent" }));
     notify("Lease sent for signature via DocuSign");
   }
   function markLeaseSigned(propId: string) {
@@ -413,7 +413,7 @@ function Overview({ role, setView, requirements, properties, viewings, openRequi
   const isBBC = role === "bbc";
   const underReview = properties.filter((p: PropertyRecord) => p.status === "Submitted").length;
   const accepted = properties.filter((p: PropertyRecord) => ["Accepted", "Matched"].includes(p.status)).length;
-  const providerVisible = properties.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status));
+  const providerVisible = properties.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed", "Heads of terms", "Schedule of works", "Lease sent", "Completed"].includes(p.status));
   const openReqs = requirements.filter((r: RequirementRecord) => r.status === "Open").length;
   const pendingViewings = viewings.filter((v: ViewingRecord) => v.status !== "Confirmed").length;
 
@@ -548,11 +548,11 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
 function Properties({ role, items, requirements, openProperty, add }: any) {
   const [propFilter, setPropFilter] = useState<"all" | "action" | "accepted" | "declined">("all");
   const visible = role === "provider"
-    ? items.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status))
+    ? items.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed", "Heads of terms", "Schedule of works", "Lease sent", "Completed"].includes(p.status))
     : items.filter((p: PropertyRecord) => p.status !== "Withdrawn");
   const filtered = role === "partner"
     ? propFilter === "action" ? visible.filter((p: PropertyRecord) => ["Submitted", "Being obtained"].includes(p.status) || p.documents.some((d: DocItem) => d.state === "Being obtained"))
-      : propFilter === "accepted" ? visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status))
+      : propFilter === "accepted" ? visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Heads of terms", "Schedule of works", "Lease sent", "Completed"].includes(p.status))
       : propFilter === "declined" ? visible.filter((p: PropertyRecord) => p.status === "Declined")
       : visible
     : visible;
@@ -564,7 +564,7 @@ function Properties({ role, items, requirements, openProperty, add }: any) {
     {role === "partner" && <section className="panel" style={{ marginBottom: 0, borderBottom: "none", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}><div className="filterbar">
       <button className={propFilter === "all" ? "selected" : ""} onClick={() => setPropFilter("all")}>All <b>{visible.length}</b></button>
       <button className={propFilter === "action" ? "selected" : ""} onClick={() => setPropFilter("action")}>Needs action <b>{needsAction}</b></button>
-      <button className={propFilter === "accepted" ? "selected" : ""} onClick={() => setPropFilter("accepted")}>Accepted <b>{visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status)).length}</b></button>
+      <button className={propFilter === "accepted" ? "selected" : ""} onClick={() => setPropFilter("accepted")}>Accepted <b>{visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Heads of terms", "Schedule of works", "Lease sent", "Completed"].includes(p.status)).length}</b></button>
       <button className={propFilter === "declined" ? "selected" : ""} onClick={() => setPropFilter("declined")}>Declined <b>{visible.filter((p: PropertyRecord) => p.status === "Declined").length}</b></button>
     </div></section>}
     <div className="property-cards">{filtered.map((p: PropertyRecord) => <article key={p.id} onClick={() => openProperty(p)}>
