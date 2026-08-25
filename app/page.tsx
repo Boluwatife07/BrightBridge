@@ -36,11 +36,25 @@ const standardDocs = (onFile: boolean[] = []): DocItem[] => STANDARD_DOCS.map((l
   state: onFile[i] ? "On file" : "Being obtained",
 }));
 
+type DealStage = "None" | "Awaiting outcome" | "Not proceeding" | "Heads of terms" | "Schedule of works" | "Lease sent" | "Completed";
+
+type HeadsOfTerms = {
+  fileName: string; uploadedOn: string;
+  rent: string; leaseLength: string; breakClause: string; repairsResponsibility: string; rentReview: string; worksRequired: string;
+  status: "Awaiting BrightBridge review" | "Shared with property source" | "Countered by property source" | "Agreed";
+  counterFileName: string; counterNote: string;
+};
+
+type WorksItem = { id: string; description: string; owner: "Property source" | "Care provider"; dueDate: string; status: "Outstanding" | "Complete" };
+
+type FeeRecord = { placementFeeStatus: "Not due" | "Invoiced" | "Paid"; placementFeeAmount: string; rentalFeeStatus: "Not started" | "Active"; leaseSignedOn: string };
+
 type PropertyRecord = {
   id: string; name: string; area: string; propertyType: string; bedrooms: string | number; bathrooms: string | number;
   condition: string; rent: string; leaseOffer: string; availableFrom: string; description: string; images: string[];
   status: string; declineReason: string; matchedReq: string | null; documents: DocItem[];
   passedOn: { reqId: string; reason: string }[];
+  dealStage: DealStage; viewingOutcomeNote: string; headsOfTerms: HeadsOfTerms | null; worksItems: WorksItem[]; fees: FeeRecord;
 };
 
 type RequirementRecord = {
@@ -54,7 +68,7 @@ type RequirementRecord = {
 type ViewingRecord = {
   id: string; propertyId: string; propertyName: string; reqId: string | null;
   candidateDates: string[]; partnerSelectedDate: string | null; confirmedDate: string | null; declineNote: string | null;
-  status: "Requested" | "Shared with property source" | "Awaiting BrightBridge confirmation" | "Reschedule needed" | "Confirmed";
+  status: "Requested" | "Reschedule needed" | "Confirmed";
 };
 
 const seedRequirements: RequirementRecord[] = [
@@ -64,15 +78,26 @@ const seedRequirements: RequirementRecord[] = [
 ];
 
 const seedProperties: PropertyRecord[] = [
-  { id: "PROP-231", name: "Detached home, Penn", images: ["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop"], area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", leaseOffer: "5 to 10 years", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false, false, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [] },
-  { id: "PROP-234", name: "Semi-detached, Bilston", images: ["https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560185127-6a3c7c4e7261?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop"], area: "Wolverhampton, WV14", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 2, condition: "Furnished", rent: "£3,100 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Sep 2026", description: "End of terrace converted to six bedrooms across two floors. Close to bus routes. Small rear yard.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: standardDocs([true, true, true, true, false, false, false, false]), passedOn: [] },
-  { id: "PROP-229", name: "Corner house, Hanley", images: ["https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600210492493-0946911123ea?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600573472556-e636c2acda9e?w=400&h=300&fit=crop"], area: "Stoke-on-Trent, ST1", propertyType: "Larger format (7+ bed)", bedrooms: 7, bathrooms: 2, condition: "Furnished", rent: "£3,900 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Oct 2026", description: "", status: "Submitted", declineReason: "", matchedReq: "REQ-1044", documents: standardDocs([true, true, false, true, false, false, false, false]), passedOn: [] },
-  { id: "PROP-226", name: "Accessible bungalow", images: ["https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600047509782-20d39509f26d?w=400&h=300&fit=crop"], area: "Walsall, WS3", propertyType: "Family home (2 to 3 bed)", bedrooms: 4, bathrooms: 2, condition: "Unfurnished", rent: "£2,950 pcm", leaseOffer: "3 to 7 years", availableFrom: "Immediate", description: "", status: "Accepted", declineReason: "", matchedReq: null, documents: standardDocs([true, false, false, false, false, false, false, false]), passedOn: [] },
+  { id: "PROP-231", name: "Detached home, Penn", images: ["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop"], area: "Wolverhampton, WV4", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,450 pcm", leaseOffer: "5 to 10 years", availableFrom: "Immediate", description: "Spacious detached property recently refurbished throughout, six double bedrooms, three bathrooms, enclosed rear garden and driveway parking.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: [...standardDocs([true, true, true, true, true, false, false, false]), { id: "DOC-REQ-1", label: "Buildings insurance certificate", standard: false, askedForBy: "requirement", state: "On file" }], passedOn: [],
+    dealStage: "Schedule of works", viewingOutcomeNote: "Provider confirmed the property meets their requirement, keen to proceed.",
+    headsOfTerms: { fileName: "Willow_Care_HoT_Penn.pdf", uploadedOn: "5 Aug 2026", rent: "£3,450 pcm", leaseLength: "10 years", breakClause: "Mutual break at year 5", repairsResponsibility: "Landlord: structure and exterior. Provider: internal decoration and fixtures.", rentReview: "RPI-linked, reviewed every 3 years", worksRequired: "Fire door upgrade to bedrooms, emergency lighting in hallway", status: "Agreed", counterFileName: "", counterNote: "" },
+    worksItems: [
+      { id: "WORK-1", description: "Fit FD30 self-closing fire doors to all 6 bedrooms", owner: "Property source", dueDate: "20 Sep 2026", status: "Complete" },
+      { id: "WORK-2", description: "Install emergency lighting on escape routes", owner: "Property source", dueDate: "20 Sep 2026", status: "Outstanding" },
+      { id: "WORK-3", description: "Confirm fire alarm meets BS 5839-6 Grade A LD1", owner: "Property source", dueDate: "25 Sep 2026", status: "Outstanding" },
+    ],
+    fees: { placementFeeStatus: "Not due", placementFeeAmount: "£1,800 + VAT", rentalFeeStatus: "Not started", leaseSignedOn: "" } },
+  { id: "PROP-234", name: "Semi-detached, Bilston", images: ["https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1560185127-6a3c7c4e7261?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop"], area: "Wolverhampton, WV14", propertyType: "HMO (up to 6 bed)", bedrooms: 6, bathrooms: 2, condition: "Furnished", rent: "£3,100 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Sep 2026", description: "End of terrace converted to six bedrooms across two floors. Close to bus routes. Small rear yard.", status: "Matched", declineReason: "", matchedReq: "REQ-1048", documents: standardDocs([true, true, true, true, false, false, false, false]), passedOn: [],
+    dealStage: "None", viewingOutcomeNote: "", headsOfTerms: null, worksItems: [], fees: { placementFeeStatus: "Not due", placementFeeAmount: "£1,800 + VAT", rentalFeeStatus: "Not started", leaseSignedOn: "" } },
+  { id: "PROP-229", name: "Corner house, Hanley", images: ["https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600210492493-0946911123ea?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600573472556-e636c2acda9e?w=400&h=300&fit=crop"], area: "Stoke-on-Trent, ST1", propertyType: "Larger format (7+ bed)", bedrooms: 7, bathrooms: 2, condition: "Furnished", rent: "£3,900 pcm", leaseOffer: "5 years minimum", availableFrom: "1 Oct 2026", description: "", status: "Submitted", declineReason: "", matchedReq: "REQ-1044", documents: standardDocs([true, true, false, true, false, false, false, false]), passedOn: [],
+    dealStage: "None", viewingOutcomeNote: "", headsOfTerms: null, worksItems: [], fees: { placementFeeStatus: "Not due", placementFeeAmount: "£1,800 + VAT", rentalFeeStatus: "Not started", leaseSignedOn: "" } },
+  { id: "PROP-226", name: "Accessible bungalow", images: ["https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=400&h=300&fit=crop", "https://images.unsplash.com/photo-1600047509782-20d39509f26d?w=400&h=300&fit=crop"], area: "Walsall, WS3", propertyType: "Family home (2 to 3 bed)", bedrooms: 4, bathrooms: 2, condition: "Unfurnished", rent: "£2,950 pcm", leaseOffer: "3 to 7 years", availableFrom: "Immediate", description: "", status: "Accepted", declineReason: "", matchedReq: null, documents: standardDocs([true, false, false, false, false, false, false, false]), passedOn: [],
+    dealStage: "None", viewingOutcomeNote: "", headsOfTerms: null, worksItems: [], fees: { placementFeeStatus: "Not due", placementFeeAmount: "£1,800 + VAT", rentalFeeStatus: "Not started", leaseSignedOn: "" } },
 ];
 
 function Status({ children, tone = "purple" }: { children: React.ReactNode; tone?: "purple" | "green" | "amber" | "grey" | "red" }) { return <span className={`status ${tone}`}>{children}</span>; }
 
-const propTone = (s: string) => ["Accepted", "Matched", "Viewing confirmed"].includes(s) ? "green" : s === "Declined" ? "red" : s === "Draft" || s === "Withdrawn" ? "grey" : "amber";
+const propTone = (s: string) => ["Accepted", "Matched", "Viewing confirmed", "Completed"].includes(s) ? "green" : s === "Declined" ? "red" : s === "Draft" || s === "Withdrawn" ? "grey" : "amber";
 const reqTone = (s: string) => s === "Open" ? "green" : s === "Draft" ? "amber" : "grey";
 const docTone = (s: DocState) => s === "Released" ? "green" : s === "On file" ? "purple" : s === "Requested" ? "amber" : "grey";
 
@@ -119,7 +144,9 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [requirements, setRequirements] = useState<RequirementRecord[]>(seedRequirements);
   const [properties, setProperties] = useState<PropertyRecord[]>(seedProperties);
-  const [viewings, setViewings] = useState<ViewingRecord[]>([]);
+  const [viewings, setViewings] = useState<ViewingRecord[]>([
+    { id: "VIEW-1", propertyId: "PROP-231", propertyName: "Detached home, Penn", reqId: "REQ-1048", candidateDates: ["Mon 17 Aug, 10:00", "Wed 19 Aug, 14:00", "Thu 20 Aug, 11:00"], partnerSelectedDate: "Wed 19 Aug, 14:00", confirmedDate: "Wed 19 Aug, 14:00", declineNote: null, status: "Confirmed" },
+  ]);
   const [selectedProp, setSelectedProp] = useState<PropertyRecord | null>(null);
   const [selectedReq, setSelectedReq] = useState<RequirementRecord | null>(null);
   const [activeViewing, setActiveViewing] = useState<ViewingRecord | null>(null);
@@ -134,8 +161,8 @@ export default function Home() {
   const roleName = role === "bbc" ? "BrightBridge workspace" : role === "provider" ? "Care provider portal" : "Property partner portal";
   const heading = view === "overview" ? `Welcome back, ${myName.split(" ").slice(0, 2).join(" ")}` : NAV[view]?.label;
   const navItems = navFor(role);
-  const bbcViewingsPending = viewings.filter(v => v.status === "Requested" || v.status === "Awaiting BrightBridge confirmation").length;
-  const partnerViewingsPending = viewings.filter(v => v.status === "Shared with property source").length;
+  const bbcViewingsPending = 0; // BBC no longer brokers viewing dates; nothing requires their action here
+  const partnerViewingsPending = viewings.filter(v => v.status === "Requested").length;
   const bbcDocRequests = properties.reduce((n, p) => n + p.documents.filter(d => d.state === "Requested").length, 0);
   const filteredProps = properties.filter(p => `${p.name} ${p.area}`.toLowerCase().includes(search.toLowerCase()));
   const today = () => new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -177,7 +204,7 @@ export default function Home() {
       setProperties(prev => prev.map(p => p.id === existingId ? { ...p, ...fields, documents: docs, status: asDraft ? "Draft" : (["Draft", "Declined"].includes(p.status) ? "Submitted" : p.status), declineReason: ["Draft", "Declined"].includes(p.status) ? "" : p.declineReason } : p));
       notify(asDraft ? "Draft saved" : "Property updated and sent to BrightBridge");
     } else {
-      const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", declineReason: "", matchedReq: forReqId, images: [], documents: docsForRequirement(forReqId, docs), passedOn: [], ...fields };
+      const prop: PropertyRecord = { id: nextId("PROP"), status: asDraft ? "Draft" : "Submitted", declineReason: "", matchedReq: forReqId, images: [], documents: docsForRequirement(forReqId, docs), passedOn: [], dealStage: "None", viewingOutcomeNote: "", headsOfTerms: null, worksItems: [], fees: { placementFeeStatus: "Not due", placementFeeAmount: "£1,800 + VAT", rentalFeeStatus: "Not started", leaseSignedOn: "" }, ...fields };
       setProperties(prev => [prop, ...prev]);
       notify(asDraft ? "Saved as a draft, nothing has been sent to BrightBridge" : (forReqId ? `Property submitted against ${forReqId}, BrightBridge will review it` : "Property submitted, BrightBridge will review it"));
     }
@@ -224,18 +251,70 @@ export default function Home() {
     const v: ViewingRecord = { id: nextId("VIEW"), propertyId: prop.id, propertyName: prop.name, reqId: prop.matchedReq, candidateDates: dates, partnerSelectedDate: null, confirmedDate: null, declineNote: null, status: "Requested" };
     setViewings(prev => [v, ...prev]);
     setProperties(prev => prev.map(p => p.id === prop.id ? { ...p, status: "Viewing requested" } : p));
-    notify("Viewing requested, BrightBridge is arranging it with the property source");
+    notify("Viewing request sent directly to the property source");
     setModal(null);
   }
-  function shareWithPartner(viewId: string) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, status: "Shared with property source" } : v)); notify("Shared with the property source, awaiting their availability"); }
-  function partnerPickDate(viewId: string, date: string) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, partnerSelectedDate: date, status: "Awaiting BrightBridge confirmation" } : v)); notify("Availability sent to BrightBridge to confirm"); }
-  function partnerDecline(viewId: string, note: string) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, status: "Reschedule needed", declineNote: note } : v)); notify("BrightBridge notified, none of the dates worked"); setModal(null); }
-  function proposeNewDates(viewId: string, dates: string[]) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, candidateDates: dates, partnerSelectedDate: null, declineNote: null, status: "Requested" } : v)); notify("New dates sent to BrightBridge"); setModal(null); }
-  function confirmViewing(viewId: string) {
+  /* The property source picks a date directly, the provider proposed it directly.
+     BBC is not a clicking intermediary here, only a notified observer. */
+  function partnerPickDate(viewId: string, date: string) {
     const v = viewings.find(x => x.id === viewId);
-    setViewings(prev => prev.map(x => x.id === viewId ? { ...x, status: "Confirmed", confirmedDate: x.partnerSelectedDate || "Date to be confirmed" } : x));
-    if (v) setProperties(prev => prev.map(p => p.id === v.propertyId ? { ...p, status: "Viewing confirmed", documents: p.documents.map(d => d.state === "On file" ? { ...d, state: "Released" as DocState } : d) } : p));
-    notify("Viewing confirmed, all parties emailed and documents on file released to the care provider");
+    setViewings(prev => prev.map(x => x.id === viewId ? { ...x, partnerSelectedDate: date, confirmedDate: date, status: "Confirmed" } : x));
+    if (v) setProperties(prev => prev.map(p => p.id === v.propertyId ? { ...p, status: "Viewing confirmed", dealStage: "Awaiting outcome" } : p));
+    notify("Date confirmed with the care provider. BrightBridge has been notified.");
+    setModal(null);
+  }
+  function partnerDecline(viewId: string, note: string) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, status: "Reschedule needed", declineNote: note } : v)); notify("Sent directly to the care provider, none of the dates worked"); setModal(null); }
+  function proposeNewDates(viewId: string, dates: string[]) { setViewings(prev => prev.map(v => v.id === viewId ? { ...v, candidateDates: dates, partnerSelectedDate: null, declineNote: null, status: "Requested" } : v)); notify("New dates sent directly to the property source"); setModal(null); }
+
+  /* ---------------- post-viewing deal flow ---------------- */
+  const applyDeal = (id: string, patch: (p: PropertyRecord) => Partial<PropertyRecord>) => {
+    const apply = (p: PropertyRecord) => p.id !== id ? p : { ...p, ...patch(p) };
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === id ? apply(prev) : prev);
+  };
+  function recordOutcome(propId: string, outcome: "Proceeding" | "Not proceeding", note: string) {
+    if (outcome === "Not proceeding") {
+      applyDeal(propId, () => ({ dealStage: "Not proceeding", viewingOutcomeNote: note, matchedReq: null, status: "Accepted" }));
+      notify("Outcome recorded, property returned to the accepted pool");
+    } else {
+      applyDeal(propId, () => ({ dealStage: "Heads of terms", viewingOutcomeNote: note }));
+      notify("Outcome recorded, waiting on heads of terms from the care provider");
+    }
+  }
+  function uploadHeadsOfTerms(propId: string, fields: Omit<HeadsOfTerms, "status" | "counterFileName" | "counterNote">) {
+    applyDeal(propId, () => ({ headsOfTerms: { ...fields, status: "Awaiting BrightBridge review", counterFileName: "", counterNote: "" } }));
+    notify("Heads of terms sent to BrightBridge for review");
+  }
+  function shareHeadsOfTerms(propId: string) {
+    applyDeal(propId, p => ({ headsOfTerms: p.headsOfTerms ? { ...p.headsOfTerms, status: "Shared with property source" } : null }));
+    notify("Shared with the property source");
+  }
+  function counterHeadsOfTerms(propId: string, note: string) {
+    applyDeal(propId, p => ({ headsOfTerms: p.headsOfTerms ? { ...p.headsOfTerms, status: "Countered by property source", counterNote: note } : null }));
+    notify("Counter sent to BrightBridge");
+  }
+  function agreeHeadsOfTerms(propId: string) {
+    applyDeal(propId, p => ({ headsOfTerms: p.headsOfTerms ? { ...p.headsOfTerms, status: "Agreed" } : null, dealStage: "Schedule of works" }));
+    notify("Terms agreed, moving to schedule of works");
+  }
+  function addWorksItem(propId: string, item: Omit<WorksItem, "id" | "status">) {
+    applyDeal(propId, p => ({ worksItems: [...p.worksItems, { ...item, id: nextId("WORK"), status: "Outstanding" }] }));
+    notify("Added to the schedule of works");
+  }
+  function toggleWorksItem(propId: string, workId: string) {
+    applyDeal(propId, p => ({ worksItems: p.worksItems.map(w => w.id === workId ? { ...w, status: w.status === "Complete" ? "Outstanding" : "Complete" } : w) }));
+  }
+  function sendLease(propId: string) {
+    applyDeal(propId, () => ({ dealStage: "Lease sent" }));
+    notify("Lease sent for signature via DocuSign");
+  }
+  function markLeaseSigned(propId: string) {
+    applyDeal(propId, p => ({
+      dealStage: "Completed", status: "Completed",
+      documents: p.documents.map(d => d.state === "On file" ? { ...d, state: "Released" as DocState } : d),
+      fees: { ...p.fees, placementFeeStatus: "Invoiced", rentalFeeStatus: "Active", leaseSignedOn: today() },
+    }));
+    notify("Lease signed. Documents released, placement fee invoiced, rental fee tracking begun.");
   }
 
   const partnerSafeReq = (r: RequirementRecord) => { const { operator, ...rest } = r; return rest; };
@@ -276,7 +355,7 @@ export default function Home() {
       {view === "overview" && <Overview role={role} setView={setView} requirements={requirements} properties={properties} viewings={viewings} openRequirement={() => { setEditingReq(null); setModal("requirement"); }} openProperty={openProperty} notify={notify} onUpload={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }} openReqDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }}/>}
       {view === "requirements" && <Requirements role={role} requirements={requirements} reqFilter={reqFilter} setReqFilter={setReqFilter} reqListFiltered={reqListFiltered} openDetail={(r: RequirementRecord) => { setSelectedReq(r); setModal("detail"); }} create={() => { setEditingReq(null); setModal("requirement"); }} partnerSafeReq={partnerSafeReq}/>}
       {view === "properties" && <Properties role={role} items={filteredProps} requirements={requirements} openProperty={openProperty} add={() => { setEditingProp(null); setUploadForReqId(null); setUploadStep(1); setModal("upload"); }}/>}
-      {view === "viewings" && <Viewings role={role} viewings={viewings} shareWithPartner={shareWithPartner} partnerPickDate={partnerPickDate} confirmViewing={confirmViewing} onDeclineDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("declineDates"); }} onNewDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("viewingRequest"); }} setView={setView}/>}
+      {view === "viewings" && <Viewings role={role} viewings={viewings} partnerPickDate={partnerPickDate} onDeclineDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("declineDates"); }} onNewDates={(v: ViewingRecord) => { setActiveViewing(v); setModal("viewingRequest"); }} setView={setView}/>}
       {view === "messages" && <Messages role={role} myName={myName} properties={properties} requirements={requirements}/>}
       {view === "settings" && <Settings role={role}/>}
     </main>
@@ -292,6 +371,8 @@ export default function Home() {
       onRequestViewing={() => setModal("viewingRequest")} onPassOn={() => setModal("passOn")}
       onEdit={() => { setEditingProp(selectedProp); setUploadForReqId(selectedProp.matchedReq); setUploadStep(1); setModal("upload"); }}
       onWithdraw={() => withdrawProperty(selectedProp.id)}
+      onRecordOutcome={recordOutcome} onUploadHoT={uploadHeadsOfTerms} onShareHoT={shareHeadsOfTerms} onCounterHoT={counterHeadsOfTerms} onAgreeHoT={agreeHeadsOfTerms}
+      onAddWorksItem={addWorksItem} onToggleWorksItem={toggleWorksItem} onSendLease={sendLease} onMarkSigned={markLeaseSigned}
     />}
 
     {modal === "docRequest" && selectedProp && <Modal title="Ask for more documents" onClose={() => setModal("property")} wide>
@@ -332,7 +413,7 @@ function Overview({ role, setView, requirements, properties, viewings, openRequi
   const isBBC = role === "bbc";
   const underReview = properties.filter((p: PropertyRecord) => p.status === "Submitted").length;
   const accepted = properties.filter((p: PropertyRecord) => ["Accepted", "Matched"].includes(p.status)).length;
-  const providerVisible = properties.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed"].includes(p.status));
+  const providerVisible = properties.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status));
   const openReqs = requirements.filter((r: RequirementRecord) => r.status === "Open").length;
   const pendingViewings = viewings.filter((v: ViewingRecord) => v.status !== "Confirmed").length;
 
@@ -340,7 +421,7 @@ function Overview({ role, setView, requirements, properties, viewings, openRequi
     ? [["Live requirements", String(openReqs), "Shared with partners"], ["Properties to review", String(underReview), "Needs a decision"], ["Viewings to coordinate", String(pendingViewings), "Needs action"], ["Properties accepted", String(accepted), "Ready or matched"]]
     : role === "provider"
     ? [["Live requirements", String(openReqs), `${requirements.filter((r: RequirementRecord) => r.status === "Draft").length} in draft`], ["Properties to review", String(providerVisible.filter((p: PropertyRecord) => p.status === "Matched").length), "Matched to your briefs"], ["Viewings in progress", String(pendingViewings), "Being arranged"], ["Viewings confirmed", String(viewings.filter((v: ViewingRecord) => v.status === "Confirmed").length), "Booked in"]]
-    : [["Properties submitted", String(properties.filter((p: PropertyRecord) => !["Withdrawn", "Draft"].includes(p.status)).length), `${underReview} under review`], ["Accepted", String(accepted), "Ready or matched"], ["Viewing requests", String(viewings.filter((v: ViewingRecord) => v.status === "Shared with property source").length), "Needs your availability"], ["Fees earned", "£750", "Lifetime"]];
+    : [["Properties submitted", String(properties.filter((p: PropertyRecord) => !["Withdrawn", "Draft"].includes(p.status)).length), `${underReview} under review`], ["Accepted", String(accepted), "Ready or matched"], ["Viewing requests", String(viewings.filter((v: ViewingRecord) => v.status === "Requested").length), "Needs your availability"], ["Docs outstanding", String(properties.reduce((n: number, p: PropertyRecord) => n + p.documents.filter((d: DocItem) => d.state === "Being obtained").length, 0)), "Upload needed"]];
 
   const visibleReqs = role === "partner" ? requirements.filter((r: RequirementRecord) => r.status === "Open") : requirements.filter((r: RequirementRecord) => r.status !== "Withdrawn");
   const visibleProps = role === "provider" ? providerVisible : properties.filter((p: PropertyRecord) => p.status !== "Withdrawn");
@@ -467,11 +548,11 @@ function RequirementDetailModal({ role, req, properties, onClose, onEdit, onPubl
 function Properties({ role, items, requirements, openProperty, add }: any) {
   const [propFilter, setPropFilter] = useState<"all" | "action" | "accepted" | "declined">("all");
   const visible = role === "provider"
-    ? items.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed"].includes(p.status))
+    ? items.filter((p: PropertyRecord) => ["Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status))
     : items.filter((p: PropertyRecord) => p.status !== "Withdrawn");
   const filtered = role === "partner"
     ? propFilter === "action" ? visible.filter((p: PropertyRecord) => ["Submitted", "Being obtained"].includes(p.status) || p.documents.some((d: DocItem) => d.state === "Being obtained"))
-      : propFilter === "accepted" ? visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status))
+      : propFilter === "accepted" ? visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status))
       : propFilter === "declined" ? visible.filter((p: PropertyRecord) => p.status === "Declined")
       : visible
     : visible;
@@ -483,7 +564,7 @@ function Properties({ role, items, requirements, openProperty, add }: any) {
     {role === "partner" && <section className="panel" style={{ marginBottom: 0, borderBottom: "none", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}><div className="filterbar">
       <button className={propFilter === "all" ? "selected" : ""} onClick={() => setPropFilter("all")}>All <b>{visible.length}</b></button>
       <button className={propFilter === "action" ? "selected" : ""} onClick={() => setPropFilter("action")}>Needs action <b>{needsAction}</b></button>
-      <button className={propFilter === "accepted" ? "selected" : ""} onClick={() => setPropFilter("accepted")}>Accepted <b>{visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status)).length}</b></button>
+      <button className={propFilter === "accepted" ? "selected" : ""} onClick={() => setPropFilter("accepted")}>Accepted <b>{visible.filter((p: PropertyRecord) => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Completed"].includes(p.status)).length}</b></button>
       <button className={propFilter === "declined" ? "selected" : ""} onClick={() => setPropFilter("declined")}>Declined <b>{visible.filter((p: PropertyRecord) => p.status === "Declined").length}</b></button>
     </div></section>}
     <div className="property-cards">{filtered.map((p: PropertyRecord) => <article key={p.id} onClick={() => openProperty(p)}>
@@ -514,7 +595,7 @@ function DecidePropertyPanel({ propId, onDecide }: { propId: string; onDecide: (
   </div>;
 }
 
-function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, onRequestDocs, onAskPartner, onMarkOnFile, onRelease, onRequestViewing, onPassOn, onEdit, onWithdraw }: any) {
+function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, onRequestDocs, onAskPartner, onMarkOnFile, onRelease, onRequestViewing, onPassOn, onEdit, onWithdraw, onRecordOutcome, onUploadHoT, onShareHoT, onCounterHoT, onAgreeHoT, onAddWorksItem, onToggleWorksItem, onSendLease, onMarkSigned }: any) {
   const partnerActions = role === "partner" && !["Withdrawn", "Declined"].includes(prop.status) ? [{ icon: "✎", label: "Edit", onClick: onEdit }, { icon: "⊘", label: "Withdraw, no longer available", onClick: onWithdraw, danger: true }] : [];
 
   return <Modal title={`${prop.id} · Property`} onClose={onClose} actions={partnerActions} wide>
@@ -522,13 +603,14 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
     <div className="property-hero"><div><Status tone={propTone(prop.status)}>{prop.status}</Status><h2>{prop.name || "Untitled draft"}</h2><p>{prop.area} · {prop.bedrooms} bedrooms · {prop.bathrooms} bathrooms · {prop.condition} · {prop.rent}{prop.leaseOffer ? ` · ${prop.leaseOffer}` : ""}</p>{prop.matchedReq && role === "partner" && (() => { const mr = requirements.find((r: RequirementRecord) => r.id === prop.matchedReq); return mr ? <p style={{ fontSize: 12, marginTop: 4, color: "var(--purple)" }}>Matched to {mr.id}: {mr.title} · {mr.area} · {mr.bedrooms} beds · {mr.budget}</p> : <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>; })()}
     {prop.matchedReq && role !== "partner" && <p style={{ fontSize: 12, marginTop: 4 }}>Matched to {prop.matchedReq}</p>}</div><div className="property-art" style={{ overflow: "hidden" }}>{prop.images?.[0] ? <img src={prop.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 12 }}/> : <span style={{ fontSize: 48 }}>⌂</span>}</div></div>
 
-    {role === "partner" && <div style={{ padding: "0 24px" }}><div style={{ padding: "12px 16px", borderRadius: 10, fontSize: 12, lineHeight: 1.6, background: prop.status === "Submitted" ? "var(--purple-soft)" : prop.status === "Accepted" ? "#e8f5e9" : prop.status === "Matched" ? "#e8f5e9" : prop.status === "Viewing requested" ? "var(--amber-bg)" : prop.status === "Viewing confirmed" ? "#e8f5e9" : "transparent", color: "var(--ink)", marginBottom: 4 }}>
+    {role === "partner" && prop.dealStage === "None" && <div style={{ padding: "0 24px" }}><div style={{ padding: "12px 16px", borderRadius: 10, fontSize: 12, lineHeight: 1.6, background: prop.status === "Submitted" ? "var(--purple-soft)" : prop.status === "Accepted" ? "#e8f5e9" : prop.status === "Matched" ? "#e8f5e9" : prop.status === "Viewing requested" ? "var(--amber-bg)" : "transparent", color: "var(--ink)", marginBottom: 4 }}>
       {prop.status === "Submitted" && "BrightBridge is reviewing this property. You will hear back within two working days."}
       {prop.status === "Accepted" && "Property accepted. BrightBridge is looking for the right care provider match."}
       {prop.status === "Matched" && "A care provider is reviewing this property against their requirement."}
       {prop.status === "Viewing requested" && "The care provider wants to view this property. BrightBridge will share the dates with you."}
-      {prop.status === "Viewing confirmed" && "Viewing is booked. Check the Viewings tab for the confirmed date."}
     </div></div>}
+
+    {prop.dealStage !== "None" && <DealTracker role={role} prop={prop} onRecordOutcome={onRecordOutcome} onUploadHoT={onUploadHoT} onShareHoT={onShareHoT} onCounterHoT={onCounterHoT} onAgreeHoT={onAgreeHoT} onAddWorksItem={onAddWorksItem} onToggleWorksItem={onToggleWorksItem} onSendLease={onSendLease} onMarkSigned={onMarkSigned}/>}
 
     <div className="modal-section"><h3>Photos</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -557,7 +639,7 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
         {(() => { const released = prop.documents.filter((d: DocItem) => d.state === "Released"); const pending = prop.documents.filter((d: DocItem) => d.state !== "Released"); return <>
           {released.length > 0 && <><p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>{released.length} document{released.length > 1 ? "s" : ""} available</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", marginBottom: 14 }}>{released.map((d: DocItem) => <div key={d.id} style={{ fontSize: 12, padding: "6px 0", display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: "var(--green)", fontWeight: 700 }}>✓</span>{d.label}<button className="secondary" style={{ fontSize: 9, padding: "3px 8px", marginLeft: "auto" }}>Open</button></div>)}</div></>}
-          {pending.length > 0 && <><p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>{pending.length} document{pending.length > 1 ? "s" : ""} pending{prop.status !== "Viewing confirmed" ? ", released once your viewing is confirmed" : ""}</p>
+          {pending.length > 0 && <><p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>{pending.length} document{pending.length > 1 ? "s" : ""} pending, released once the lease is signed</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>{pending.map((d: DocItem) => <div key={d.id} style={{ fontSize: 12, padding: "6px 0", display: "flex", alignItems: "center", gap: 6, color: "var(--muted)" }}><span>○</span>{d.label}</div>)}</div></>}
         </>; })()}
         <button className="secondary" style={{ marginTop: 14 }} onClick={onRequestDocs}>Ask for more documents</button>
@@ -565,7 +647,6 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
 
       {prop.status === "Matched" && <div className="form-actions"><button className="secondary" style={{ color: "#c23b3b" }} onClick={onPassOn}>Not suitable</button><button className="primary" onClick={onRequestViewing}>Request a viewing</button></div>}
       {prop.status === "Viewing requested" && <div className="modal-section" style={{ padding: "12px 24px" }}><p style={{ fontSize: 12, color: "var(--muted)" }}>Viewing requested. BrightBridge is arranging a date with the property source and will confirm with you by email.</p></div>}
-      {prop.status === "Viewing confirmed" && <div className="modal-section" style={{ padding: "12px 24px" }}><p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>Viewing confirmed. Check the Viewings tab for the date.</p></div>}
     </> : <>
       <div className="modal-section">
         <h3>Documents</h3>
@@ -599,38 +680,183 @@ function PropertyModal({ role, prop, requirements, onClose, onDecide, onMatch, o
 }
 
 /* ---------------------------------------------------------------------------
+   Deal tracker: everything from viewing outcome to completion
+--------------------------------------------------------------------------- */
+
+const DEAL_STEPS: DealStage[] = ["Awaiting outcome", "Heads of terms", "Schedule of works", "Lease sent", "Completed"];
+
+function DealTracker({ role, prop, onRecordOutcome, onUploadHoT, onShareHoT, onCounterHoT, onAgreeHoT, onAddWorksItem, onToggleWorksItem, onSendLease, onMarkSigned }: any) {
+  const stepIndex = prop.dealStage === "Not proceeding" ? -1 : DEAL_STEPS.indexOf(prop.dealStage);
+
+  return <div className="modal-section" style={{ background: "var(--surface)", margin: "0 24px", borderRadius: 12, padding: 20 }}>
+    <h3 style={{ marginBottom: 14 }}>Deal progress</h3>
+
+    {prop.dealStage !== "Not proceeding" && <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+      {DEAL_STEPS.map((step, i) => <div key={step} style={{ flex: 1, textAlign: "center" }}>
+        <div style={{ height: 4, background: i <= stepIndex ? "var(--purple)" : "#e2dfe6", borderRadius: 2, marginBottom: 6 }}/>
+        <div style={{ fontSize: 9, color: i <= stepIndex ? "var(--purple)" : "var(--muted)", fontWeight: i === stepIndex ? 700 : 500, lineHeight: 1.4 }}>{step}</div>
+      </div>)}
+    </div>}
+
+    {prop.dealStage === "Not proceeding" && <div style={{ padding: "12px 14px", borderRadius: 8, background: "#fdeceb", fontSize: 12, lineHeight: 1.6 }}><strong style={{ display: "block", marginBottom: 4 }}>Not proceeding</strong>{prop.viewingOutcomeNote || "No reason given."}</div>}
+
+    {prop.dealStage === "Awaiting outcome" && <ViewingOutcomeStep role={role} prop={prop} onRecordOutcome={onRecordOutcome}/>}
+    {prop.dealStage === "Heads of terms" && <HeadsOfTermsStep role={role} prop={prop} onUploadHoT={onUploadHoT} onShareHoT={onShareHoT} onCounterHoT={onCounterHoT} onAgreeHoT={onAgreeHoT}/>}
+    {prop.dealStage === "Schedule of works" && <WorksStep role={role} prop={prop} onAddWorksItem={onAddWorksItem} onToggleWorksItem={onToggleWorksItem} onSendLease={onSendLease}/>}
+    {prop.dealStage === "Lease sent" && <LeaseStep role={role} prop={prop} onMarkSigned={onMarkSigned}/>}
+    {prop.dealStage === "Completed" && <CompletedStep prop={prop}/>}
+  </div>;
+}
+
+function ViewingOutcomeStep({ role, prop, onRecordOutcome }: any) {
+  const [note, setNote] = useState("");
+  if (role === "partner") return <p style={{ fontSize: 12, color: "var(--muted)" }}>Waiting to hear from the care provider whether they want to proceed after their viewing.</p>;
+  if (role === "bbc") return <p style={{ fontSize: 12, color: "var(--muted)" }}>Waiting on the care provider to log the outcome of their viewing.</p>;
+  return <div>
+    <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>How did the viewing go? This starts the lease process if you want to proceed.</p>
+    <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Notes for BrightBridge (optional)" style={{ width: "100%", minHeight: 56, border: "1px solid var(--line)", borderRadius: 9, padding: 10, fontSize: 12, fontFamily: "inherit", marginBottom: 10 }}/>
+    <div style={{ display: "flex", gap: 10 }}>
+      <button className="secondary" style={{ color: "#c23b3b" }} onClick={() => onRecordOutcome(prop.id, "Not proceeding", note.trim() || "Care provider did not want to proceed after viewing.")}>Not proceeding</button>
+      <button className="primary" onClick={() => onRecordOutcome(prop.id, "Proceeding", note.trim() || "Care provider confirmed they want to proceed.")}>We want to proceed</button>
+    </div>
+  </div>;
+}
+
+function HeadsOfTermsStep({ role, prop, onUploadHoT, onShareHoT, onCounterHoT, onAgreeHoT }: any) {
+  const hot: HeadsOfTerms | null = prop.headsOfTerms;
+  const [showForm, setShowForm] = useState(false);
+  const [counter, setCounter] = useState("");
+  const [f, setF] = useState({ rent: prop.rent, leaseLength: prop.leaseOffer, breakClause: "", repairsResponsibility: "", rentReview: "", worksRequired: "" });
+  const set = (k: string, v: string) => setF(p => ({ ...p, [k]: v }));
+
+  if (!hot) {
+    if (role === "provider") return showForm ? <div>
+      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Set out the terms you are proposing. BrightBridge will share this with the property source.</p>
+      <div className="form" style={{ padding: 0 }}>
+        <div className="field"><label>Proposed rent</label><input value={f.rent} onChange={e => set("rent", e.target.value)}/></div>
+        <div className="field"><label>Lease length</label><input value={f.leaseLength} onChange={e => set("leaseLength", e.target.value)} placeholder="e.g. 10 years"/></div>
+        <div className="field"><label>Break clause</label><input value={f.breakClause} onChange={e => set("breakClause", e.target.value)} placeholder="e.g. Mutual break at year 5"/></div>
+        <div className="field"><label>Rent review</label><input value={f.rentReview} onChange={e => set("rentReview", e.target.value)} placeholder="e.g. RPI-linked, every 3 years"/></div>
+        <div className="field full"><label>Repairs responsibility</label><textarea value={f.repairsResponsibility} onChange={e => set("repairsResponsibility", e.target.value)} placeholder="Who is responsible for what"/></div>
+        <div className="field full"><label>Works required before handover</label><textarea value={f.worksRequired} onChange={e => set("worksRequired", e.target.value)} placeholder="Leave blank if none"/></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+        <button className="secondary" onClick={() => setShowForm(false)}>Cancel</button>
+        <button className="primary" disabled={!f.rent.trim() || !f.leaseLength.trim()} onClick={() => onUploadHoT(prop.id, { fileName: `${prop.name.replace(/[^a-zA-Z0-9]/g, "_")}_HoT.pdf`, uploadedOn: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), ...f })}>Send heads of terms</button>
+      </div>
+    </div> : <div><p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>Share your heads of terms with the property source via BrightBridge.</p><button className="primary" onClick={() => setShowForm(true)}>Prepare heads of terms</button></div>;
+    if (role === "partner") return <p style={{ fontSize: 12, color: "var(--muted)" }}>Waiting on heads of terms from the care provider.</p>;
+    return <p style={{ fontSize: 12, color: "var(--muted)" }}>Waiting on heads of terms from the care provider.</p>;
+  }
+
+  return <div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", marginBottom: 14 }}>
+      <div><small style={{ fontSize: 10, color: "var(--muted)" }}>Rent</small><div style={{ fontSize: 12, fontWeight: 600 }}>{hot.rent}</div></div>
+      <div><small style={{ fontSize: 10, color: "var(--muted)" }}>Lease length</small><div style={{ fontSize: 12, fontWeight: 600 }}>{hot.leaseLength}</div></div>
+      <div><small style={{ fontSize: 10, color: "var(--muted)" }}>Break clause</small><div style={{ fontSize: 12, fontWeight: 600 }}>{hot.breakClause || "None"}</div></div>
+      <div><small style={{ fontSize: 10, color: "var(--muted)" }}>Rent review</small><div style={{ fontSize: 12, fontWeight: 600 }}>{hot.rentReview || "—"}</div></div>
+      {hot.repairsResponsibility && <div style={{ gridColumn: "1/3" }}><small style={{ fontSize: 10, color: "var(--muted)" }}>Repairs</small><div style={{ fontSize: 12 }}>{hot.repairsResponsibility}</div></div>}
+      {hot.worksRequired && <div style={{ gridColumn: "1/3" }}><small style={{ fontSize: 10, color: "var(--muted)" }}>Works required</small><div style={{ fontSize: 12 }}>{hot.worksRequired}</div></div>}
+    </div>
+    <Status tone={hot.status === "Agreed" ? "green" : hot.status === "Countered by property source" ? "amber" : "purple"}>{hot.status}</Status>
+
+    {hot.counterNote && <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "var(--amber-bg)", fontSize: 12, lineHeight: 1.6 }}><strong style={{ display: "block", marginBottom: 4 }}>Property source counter</strong>{hot.counterNote}</div>}
+
+    {role === "bbc" && hot.status === "Awaiting BrightBridge review" && <button className="primary" style={{ marginTop: 14 }} onClick={() => onShareHoT(prop.id)}>Share with property source</button>}
+
+    {role === "partner" && hot.status === "Shared with property source" && (showForm ? <div style={{ marginTop: 12 }}>
+      <textarea value={counter} onChange={e => setCounter(e.target.value)} placeholder="What would you like to change?" style={{ width: "100%", minHeight: 56, border: "1px solid var(--line)", borderRadius: 9, padding: 10, fontSize: 12, fontFamily: "inherit" }}/>
+      <div style={{ display: "flex", gap: 10, marginTop: 8 }}><button className="secondary" onClick={() => setShowForm(false)}>Cancel</button><button className="primary" disabled={!counter.trim()} onClick={() => onCounterHoT(prop.id, counter.trim())}>Send counter</button></div>
+    </div> : <div style={{ display: "flex", gap: 10, marginTop: 14 }}><button className="secondary" onClick={() => setShowForm(true)}>Counter these terms</button><button className="primary" onClick={() => onAgreeHoT(prop.id)}>Accept terms</button></div>)}
+
+    {role === "bbc" && hot.status === "Countered by property source" && <button className="primary" style={{ marginTop: 14 }} onClick={() => onAgreeHoT(prop.id)}>Mark terms as agreed</button>}
+  </div>;
+}
+
+function WorksStep({ role, prop, onAddWorksItem, onToggleWorksItem, onSendLease }: any) {
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState({ description: "", owner: "Property source" as "Property source" | "Care provider", dueDate: "" });
+  const allDone = prop.worksItems.length > 0 && prop.worksItems.every((w: WorksItem) => w.status === "Complete");
+
+  return <div>
+    {prop.worksItems.length === 0 && <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>No works agreed. If the heads of terms did not require any works, BrightBridge can move straight to sending the lease.</p>}
+    {prop.worksItems.map((w: WorksItem) => <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+      {role === "bbc" ? <input type="checkbox" checked={w.status === "Complete"} onChange={() => onToggleWorksItem(prop.id, w.id)} style={{ width: 16, height: 16 }}/> : <span style={{ color: w.status === "Complete" ? "var(--green)" : "var(--muted)" }}>{w.status === "Complete" ? "✓" : "○"}</span>}
+      <div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600, textDecoration: w.status === "Complete" ? "line-through" : "none", color: w.status === "Complete" ? "var(--muted)" : "var(--ink)" }}>{w.description}</div><div style={{ fontSize: 10, color: "var(--muted)" }}>{w.owner} · due {w.dueDate}</div></div>
+      <Status tone={w.status === "Complete" ? "green" : "amber"}>{w.status}</Status>
+    </div>)}
+
+    {role === "bbc" && (adding ? <div style={{ marginTop: 14 }}>
+      <div className="form" style={{ padding: 0 }}>
+        <div className="field full"><label>Item</label><input value={f.description} onChange={e => setF(p => ({ ...p, description: e.target.value }))} placeholder="e.g. Fit interlinked smoke alarms"/></div>
+        <div className="field"><label>Owner</label><select value={f.owner} onChange={e => setF(p => ({ ...p, owner: e.target.value as any }))}><option>Property source</option><option>Care provider</option></select></div>
+        <div className="field"><label>Due date</label><input type="date" onChange={e => setF(p => ({ ...p, dueDate: new Date(e.target.value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) }))}/></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, marginTop: 10 }}><button className="secondary" onClick={() => setAdding(false)}>Cancel</button><button className="primary" disabled={!f.description.trim()} onClick={() => { onAddWorksItem(prop.id, f); setAdding(false); setF({ description: "", owner: "Property source", dueDate: "" }); }}>Add item</button></div>
+    </div> : <button className="secondary" style={{ marginTop: 12 }} onClick={() => setAdding(true)}>Add works item</button>)}
+
+    {role === "bbc" && (prop.worksItems.length === 0 || allDone) && <button className="primary" style={{ marginTop: 16 }} onClick={() => onSendLease(prop.id)}>Send lease via DocuSign</button>}
+    {role === "bbc" && prop.worksItems.length > 0 && !allDone && <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 12 }}>Complete all works items before sending the lease.</p>}
+  </div>;
+}
+
+function LeaseStep({ role, prop, onMarkSigned }: any) {
+  return <div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "#fff", borderRadius: 8, border: "1px solid var(--line)", marginBottom: 12 }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--purple-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "var(--purple)", fontSize: 12 }}>DS</div>
+      <div><div style={{ fontSize: 12, fontWeight: 600 }}>Lease sent via DocuSign</div><div style={{ fontSize: 10, color: "var(--muted)" }}>Awaiting signature from both parties</div></div>
+    </div>
+    {role === "bbc" ? <button className="primary" onClick={() => onMarkSigned(prop.id)}>Mark as fully signed</button>
+      : <p style={{ fontSize: 12, color: "var(--muted)" }}>The lease has been sent for signature. You will be notified once it is fully signed.</p>}
+  </div>;
+}
+
+function CompletedStep({ prop }: any) {
+  return <div>
+    <div style={{ padding: "12px 14px", borderRadius: 8, background: "#e8f5e9", marginBottom: 14 }}>
+      <strong style={{ fontSize: 12, display: "block", marginBottom: 3 }}>Lease signed {prop.fees.leaseSignedOn}</strong>
+      <span style={{ fontSize: 11, color: "var(--muted)" }}>Documents released, fees now tracking.</span>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+      <div><small style={{ fontSize: 10, color: "var(--muted)" }}>Placement fee</small><div style={{ fontSize: 12, fontWeight: 600 }}>{prop.fees.placementFeeAmount} · {prop.fees.placementFeeStatus}</div></div>
+      <div><small style={{ fontSize: 10, color: "var(--muted)" }}>Ongoing rental fee</small><div style={{ fontSize: 12, fontWeight: 600 }}>8% · {prop.fees.rentalFeeStatus}</div></div>
+    </div>
+  </div>;
+}
+
+/* ---------------------------------------------------------------------------
    Viewings
 --------------------------------------------------------------------------- */
 
-function Viewings({ role, viewings, shareWithPartner, partnerPickDate, confirmViewing, onDeclineDates, onNewDates, setView }: any) {
-  const visible = role === "partner" ? viewings.filter((v: ViewingRecord) => v.status !== "Requested") : viewings;
-  if (visible.length === 0) return <div className="page-content"><div className="page-toolbar"><p>{role === "provider" ? "No viewings yet. Open a matched property to request one." : role === "partner" ? "No viewing requests yet. When a care provider wants to see one of your properties, BrightBridge shares the dates with you here." : "No viewings to coordinate."}</p></div></div>;
+function Viewings({ role, viewings, partnerPickDate, onDeclineDates, onNewDates, setView }: any) {
+  const visible = viewings;
+  if (visible.length === 0) return <div className="page-content"><div className="page-toolbar"><p>{role === "provider" ? "No viewings yet. Open a matched property to request one." : role === "partner" ? "No viewing requests yet. A care provider will propose dates directly here once they want to view one of your properties." : "No viewings yet."}</p></div></div>;
 
   return <div className="page-content">
-    <div className="page-toolbar"><p>{role === "bbc" ? "Coordinate every viewing between the care provider and the property source." : role === "partner" ? "Viewing requests BrightBridge has shared with you." : "Your viewing requests, from first ask to a confirmed date."}</p></div>
+    <div className="page-toolbar"><p>{role === "bbc" ? "The care provider and property source agree dates directly. You are notified once a viewing is confirmed." : role === "partner" ? "Pick a date that works, or let the care provider know none of these do." : "Your viewing requests, agreed directly with the property source."}</p></div>
     {visible.map((v: ViewingRecord) => (
       <div className="panel" key={v.id} style={{ marginBottom: 14, padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
           <div><strong style={{ fontSize: 13 }}>{v.propertyName}</strong><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{v.id} · {v.reqId || "—"}</div></div>
-          <Status tone={v.status === "Confirmed" ? "green" : v.status === "Reschedule needed" ? "red" : v.status === "Awaiting BrightBridge confirmation" ? "amber" : "purple"}>{v.status}</Status>
+          <Status tone={v.status === "Confirmed" ? "green" : v.status === "Reschedule needed" ? "red" : "purple"}>{v.status}</Status>
         </div>
         <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>Dates offered: <strong style={{ color: "var(--ink)" }}>{v.candidateDates.join(" · ")}</strong></div>
-        {v.partnerSelectedDate && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>Property source can do: <strong style={{ color: "var(--ink)" }}>{v.partnerSelectedDate}</strong></div>}
         {v.declineNote && role !== "provider" && <div style={{ fontSize: 12, color: "#c23b3b", marginBottom: 10 }}>{v.declineNote}</div>}
         {v.confirmedDate && <div style={{ fontSize: 12, color: "var(--green)", marginBottom: 10, fontWeight: 700 }}>Confirmed for {v.confirmedDate}</div>}
 
-        {role === "bbc" && v.status === "Requested" && <button className="primary" style={{ fontSize: 11 }} onClick={() => shareWithPartner(v.id)}>Share with property source</button>}
-        {role === "bbc" && v.status === "Awaiting BrightBridge confirmation" && <button className="primary" style={{ fontSize: 11 }} onClick={() => confirmViewing(v.id)}>Confirm and notify everyone</button>}
-        {role === "bbc" && v.status === "Reschedule needed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Waiting on the care provider to offer new dates.</p>}
+        {role === "bbc" && v.status === "Requested" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Waiting on the property source to pick a date. Notified once agreed, no action needed from you.</p>}
+        {role === "bbc" && v.status === "Reschedule needed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>None of the dates worked. Waiting on the care provider to offer new ones.</p>}
+        {role === "bbc" && v.status === "Confirmed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Agreed directly between the care provider and property source.</p>}
 
-        {role === "partner" && v.status === "Shared with property source" && <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {role === "partner" && v.status === "Requested" && <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {v.candidateDates.map((d: string) => <button key={d} className="secondary" style={{ fontSize: 11 }} onClick={() => partnerPickDate(v.id, d)}>Available {d}</button>)}
           <button className="secondary" style={{ fontSize: 11, color: "#c23b3b" }} onClick={() => onDeclineDates(v)}>None of these work</button>
         </div>}
 
-        {role === "provider" && v.status === "Reschedule needed" && <div style={{ display: "flex", gap: 8 }}><button className="primary" style={{ fontSize: 11 }} onClick={() => onNewDates(v)}>Offer new dates</button><button className="secondary" style={{ fontSize: 11 }} onClick={() => setView("messages")}>Message BrightBridge</button></div>}
-        {role === "provider" && v.status === "Confirmed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Everyone has been emailed. Documents on file for this property have been released to you.</p>}
-        {role === "partner" && v.status === "Confirmed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Viewing confirmed. BrightBridge will be in touch about next steps after the visit.</p>}
+        {role === "provider" && v.status === "Reschedule needed" && <div style={{ display: "flex", gap: 8 }}><button className="primary" style={{ fontSize: 11 }} onClick={() => onNewDates(v)}>Offer new dates</button><button className="secondary" style={{ fontSize: 11 }} onClick={() => setView("messages")}>Message the property source</button></div>}
+        {role === "provider" && v.status === "Requested" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Waiting on the property source to confirm a date.</p>}
+        {role === "provider" && v.status === "Confirmed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Let BrightBridge know how it went on the property page to move things forward.</p>}
+        {role === "partner" && v.status === "Confirmed" && <p style={{ fontSize: 11, color: "var(--muted)" }}>Confirmed. BrightBridge will update you on the property page once they hear from the care provider.</p>}
       </div>
     ))}
   </div>;
