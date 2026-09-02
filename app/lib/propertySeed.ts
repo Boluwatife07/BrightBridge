@@ -132,6 +132,25 @@ export const seedProperties: PropertyRecord[] = [
     dealStage: "None", viewingOutcomeNote: "", worksItems: [], offers: [], headsOfTerms: null, fees: blankFees(),
     createdOn: "14 Aug 2026",
   },
+  {
+    id: "PROP-240", partnerAccountId: "ACC-L-201", ownership: { kind: "landlord" },
+    name: "Terrace house, Fenton", area: "Stoke-on-Trent, ST4", propertyType: "Larger format (7+ bed)",
+    bedrooms: 7, bathrooms: 3, condition: "Furnished", rent: "£4,200 pcm", leaseOffer: "5 years minimum",
+    availableFrom: "Immediate", description: "Seven bedroom converted terrace, recently rewired, enclosed garden.",
+    images: [],
+    hasMortgage: "No", lenderConsented: "Not applicable", isLeasehold: "No", superiorLeaseAllowsSubletting: "Not applicable",
+    planningUseClass: "C3(b)", hasHmoLicence: "No", article4OrLicensingAware: "No",
+    status: "Offer", declineReason: "", matchedReqId: "REQ-1044",
+    documents: standardDocs([true, true, true, true, true, false, false, false]),
+    passedOn: [],
+    dealStage: "Offer", viewingOutcomeNote: "Confirmed they want to proceed, no works needed.",
+    worksItems: [],
+    offers: [
+      { id: "OFFER-1", round: 1, actor: "provider", rent: "£4,000 pcm", leaseLength: "5 years", message: "This matches our budget for the area.", status: "Offered", timestamp: "20 Aug 2026, 11:04" },
+    ],
+    headsOfTerms: null, fees: blankFees(),
+    createdOn: "5 Aug 2026",
+  },
 ];
 
 /* ---------------------------------------------------------------------------

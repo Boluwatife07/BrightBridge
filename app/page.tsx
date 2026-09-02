@@ -8,7 +8,7 @@ import { PropertySubmissionForm, PropertyFields } from "./components/PropertySub
 import { PropertyReviewQueue } from "./components/PropertyReview";
 import { PartnerPropertiesList, ProviderPropertiesList, PropertyDetailModal } from "./components/PropertiesViews";
 import { ViewingsList } from "./components/Viewings";
-import { ProviderAccount, PartnerAccount, Role, RequirementRecord, PropertyRecord, DocItem, DocState, ViewingRecord } from "./lib/types";
+import { ProviderAccount, PartnerAccount, Role, RequirementRecord, PropertyRecord, DocItem, DocState, ViewingRecord, OfferRound, nextId, now } from "./lib/types";
 import { seedProviderAccount, seedLandlordAccount, seedIntroducerAccount } from "./lib/seed";
 import { seedRequirements, blankRequirement, duplicateRequirement } from "./lib/requirementSeed";
 import { seedProperties, blankProperty } from "./lib/propertySeed";
@@ -272,6 +272,64 @@ export default function Home() {
     setPropModal(null);
   }
 
+  /* ---------------- offer negotiation (Care Provider PRD, Phase 6) ---------------- */
+  function submitOffer(p: PropertyRecord, rent: string, leaseLength: string, message: string) {
+    const round: OfferRound = { id: nextId("OFFER"), round: p.offers.length + 1, actor: "provider", rent, leaseLength, message, status: "Offered", timestamp: now() };
+    const apply = (x: PropertyRecord) => x.id === p.id ? { ...x, offers: [...x.offers, round] } : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify(`Offer sent: ${rent} on a ${leaseLength} lease`);
+  }
+
+  function acceptOffer(p: PropertyRecord) {
+    const apply = (x: PropertyRecord) => {
+      if (x.id !== p.id || x.offers.length === 0) return x;
+      const offers = x.offers.map((o, i) => i === x.offers.length - 1 ? { ...o, status: "Accepted" as const } : o);
+      const last = offers[offers.length - 1];
+      return { ...x, offers, rent: last.rent, leaseOffer: last.leaseLength, status: "Heads of terms" as const, dealStage: "Heads of terms" as const };
+    };
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Offer accepted, terms agreed");
+  }
+
+  function counterOffer(p: PropertyRecord, rent: string, leaseLength: string, message: string) {
+    const respondingActor = role === "provider" ? "provider" : "partner";
+    const apply = (x: PropertyRecord) => {
+      if (x.id !== p.id || x.offers.length === 0) return x;
+      const offers = x.offers.map((o, i) => i === x.offers.length - 1 ? { ...o, status: "Countered" as const } : o);
+      const round: OfferRound = { id: nextId("OFFER"), round: offers.length + 1, actor: respondingActor, rent, leaseLength, message, status: "Offered", timestamp: now() };
+      return { ...x, offers: [...offers, round] };
+    };
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify(`Counter sent: ${rent} on a ${leaseLength} lease`);
+  }
+
+  function rejectOffer(p: PropertyRecord, message: string) {
+    const apply = (x: PropertyRecord) => {
+      if (x.id !== p.id || x.offers.length === 0) return x;
+      const offers = x.offers.map((o, i) => i === x.offers.length - 1
+        ? { ...o, status: "Rejected" as const, message: message ? `${o.message ? o.message + " — " : ""}Declined: ${message}` : o.message }
+        : o);
+      return { ...x, offers };
+    };
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Offer rejected");
+  }
+
+  function withdrawOffer(p: PropertyRecord) {
+    const apply = (x: PropertyRecord) => {
+      if (x.id !== p.id || x.offers.length === 0) return x;
+      const offers = x.offers.map((o, i) => i === x.offers.length - 1 ? { ...o, status: "Withdrawn" as const } : o);
+      return { ...x, offers };
+    };
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Offer withdrawn");
+  }
+
   /* ---------------- landing ---------------- */
   if (screen === "landing") {
     return (
@@ -370,9 +428,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 5 is built: after a confirmed viewing, log the outcome from the property detail — not proceeding, a second viewing, or proceeding with a schedule of works. The seeded Penn property already has a confirmed viewing, ready to try. Next: rent and lease length negotiation.</>}
-                {role === "partner" && <>Stage 5 is built: once the care provider logs their outcome, you will see the schedule of works (if any) directly on the property. Next: rent and lease length negotiation.</>}
-                {role === "bbc" && <>Stage 5 is built: the care provider logs the viewing outcome directly, you are not a gate here either. A declined property returns to the accepted pool with the reason visible to you. Next: rent and lease length negotiation.</>}
+                {role === "provider" && <>Stage 6 is built: propose rent and lease length, and respond to counters, directly from the property detail. The seeded Fenton property already has an offer awaiting a response, ready to try from the partner side. Next: heads of terms.</>}
+                {role === "partner" && <>Stage 6 is built: accept, counter, or reject an offer from the care provider, directly on the property. Once agreed, the terms lock in and carry forward. Next: heads of terms.</>}
+                {role === "bbc" && <>Stage 6 is built: rent and lease length are negotiated directly between the care provider and property source. You can see the full history but there is nothing for you to action. Next: heads of terms.</>}
               </div>
             </section>
           </div>
@@ -521,6 +579,11 @@ export default function Home() {
             onNotProceeding={(reason, note) => notProceeding(current, reason, note)}
             onSecondViewing={(message) => secondViewingNeeded(current, message)}
             onProceedWithWorks={(works, note) => proceedWithWorks(current, works, note)}
+            onSubmitOffer={(rent, leaseLength, message) => submitOffer(current, rent, leaseLength, message)}
+            onAcceptOffer={() => acceptOffer(current)}
+            onCounterOffer={(rent, leaseLength, message) => counterOffer(current, rent, leaseLength, message)}
+            onRejectOffer={(message) => rejectOffer(current, message)}
+            onWithdrawOffer={() => withdrawOffer(current)}
           />
         );
       })()}
