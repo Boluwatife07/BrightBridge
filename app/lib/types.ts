@@ -325,6 +325,11 @@ export type PropertyRecord = {
   worksItems: WorksItem[];
   offers: OfferRound[];
   headsOfTerms: HeadsOfTerms | null;
+  /** Set once BBC instructs both parties to engage solicitors. Empty/absent
+   *  means not yet instructed. This is the only intermediate marker in the
+   *  lease phase — deliberately no fake statuses beyond this, since BBC has
+   *  no real visibility into solicitor progress. */
+  solicitorsInstructedOn?: string;
   fees: FeeRecord;
 
   createdOn: string;

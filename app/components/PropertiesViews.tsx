@@ -9,6 +9,7 @@ import { OfferStep } from "./Offer";
 import { HeadsOfTermsStep, HoTDraftFields } from "./HeadsOfTerms";
 import { WorksChecklist, SignOffStep } from "./Works";
 import { ComplianceStep } from "./Compliance";
+import { LeaseStep, CompletionSummary } from "./Lease";
 
 function Status({ tone, children }: { tone: "green" | "amber" | "grey" | "red"; children: React.ReactNode }) {
   return <span className={`status ${tone}`}>{children}</span>;
@@ -25,7 +26,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
   const visible = properties.filter(p => p.status !== "Withdrawn");
   const filtered = visible.filter(p =>
     filter === "action" ? p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained") :
-    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status) :
+    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease", "Completed"].includes(p.status) :
     filter === "declined" ? p.status === "Declined" : true);
 
   return (
@@ -38,7 +39,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
         <div className="filterbar">
           <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>All <b>{visible.length}</b></button>
           <button className={filter === "action" ? "selected" : ""} onClick={() => setFilter("action")}>Needs action <b>{visible.filter(p => p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained")).length}</b></button>
-          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status)).length}</b></button>
+          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease", "Completed"].includes(p.status)).length}</b></button>
           <button className={filter === "declined" ? "selected" : ""} onClick={() => setFilter("declined")}>Declined <b>{visible.filter(p => p.status === "Declined").length}</b></button>
         </div>
       </section>
@@ -69,7 +70,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
 export function ProviderPropertiesList({ properties, requirements, onOpen }: {
   properties: PropertyRecord[]; requirements: RequirementRecord[]; onOpen: (p: PropertyRecord) => void;
 }) {
-  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status));
+  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease", "Completed"].includes(p.status));
   const reqTitle = (id: string | null) => requirements.find(r => r.id === id)?.title;
 
   return (
@@ -106,6 +107,7 @@ export function PropertyDetailModal({
   providerName, partnerName, onPublishHoT, onAcceptHoT, onCounterHoT,
   onMarkWorkItemComplete, signOffStatus, onRequestSignOff, onApproveSignOff, onRaiseSnagging,
   onMarkDocOnFile, onReleaseAllDocs, onFlagDocIssue, onConfirmCompliance,
+  onInstructSolicitors, onMarkLeaseSigned,
 }: {
   role: "bbc" | "partner" | "provider";
   property: PropertyRecord;
@@ -146,6 +148,8 @@ export function PropertyDetailModal({
   onReleaseAllDocs?: () => void;
   onFlagDocIssue?: (docId: string, message: string) => void;
   onConfirmCompliance?: () => void;
+  onInstructSolicitors?: () => void;
+  onMarkLeaseSigned?: () => void;
   }) {
   const p = property;
   const providerLabel = providerName || "Care provider";
@@ -225,7 +229,7 @@ export function PropertyDetailModal({
             const collected = p.documents.filter(d => d.state === "On file" || d.state === "Released");
             const pending = p.documents.filter(d => d.state !== "On file" && d.state !== "Released");
             return <>
-              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>{collected.length} of {p.documents.length} collected. Full copies are released once the lease is signed.</p>
+              <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>{collected.length} of {p.documents.length} collected. Released documents can be opened once compliance review begins.</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
                 {p.documents.map(d => (
                   <div key={d.id} style={{ fontSize: 12, padding: "6px 0", display: "flex", alignItems: "center", gap: 6, color: (d.state === "On file" || d.state === "Released") ? "var(--ink)" : "var(--muted)" }}>
@@ -355,14 +359,18 @@ export function PropertyDetailModal({
             onConfirm={onConfirmCompliance}
           />
         )}
-        {p.status === "Lease" && (
-          <div className="modal-section" style={{ padding: "12px 24px" }}>
-            <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
-              Compliance confirmed. Lease and completion is built in the next stage.
-            </p>
-          </div>
+        {p.status === "Lease" && onInstructSolicitors && onMarkLeaseSigned && (
+          <LeaseStep
+            role={role}
+            solicitorsInstructedOn={p.solicitorsInstructedOn}
+            onInstructSolicitors={onInstructSolicitors}
+            onMarkSigned={onMarkLeaseSigned}
+          />
         )}
-        {(role === "bbc" || role === "partner") && p.status !== "Heads of terms" && p.status !== "Works" && p.status !== "Compliance review" && <WorksListReadOnly items={p.worksItems} />}
+        {p.status === "Completed" && (
+          <CompletionSummary role={role} ownership={p.ownership} rent={p.rent} leaseLength={p.leaseOffer} fees={p.fees} />
+        )}
+        {(role === "bbc" || role === "partner") && p.status !== "Heads of terms" && p.status !== "Works" && p.status !== "Compliance review" && p.status !== "Lease" && p.status !== "Completed" && <WorksListReadOnly items={p.worksItems} />}
 
         {role === "provider" && passingOn && (
           <div className="modal-section">

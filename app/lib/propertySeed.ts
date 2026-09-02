@@ -255,6 +255,34 @@ export const seedProperties: PropertyRecord[] = [
     fees: blankFees(),
     createdOn: "5 Aug 2026",
   },
+  {
+    id: "PROP-260", partnerAccountId: "ACC-L-201", ownership: { kind: "landlord" },
+    name: "Detached house, Wednesfield", area: "Wolverhampton, WV11", propertyType: "HMO (up to 6 bed)",
+    bedrooms: 6, bathrooms: 3, condition: "Furnished", rent: "£3,700 pcm", leaseOffer: "5 years",
+    availableFrom: "Immediate", description: "Compliance confirmed, solicitors instructed and finalising the lease.",
+    images: [],
+    hasMortgage: "No", lenderConsented: "Not applicable", isLeasehold: "No", superiorLeaseAllowsSubletting: "Not applicable",
+    planningUseClass: "C3(b)", hasHmoLicence: "No", article4OrLicensingAware: "No",
+    status: "Lease", declineReason: "", matchedReqId: "REQ-1048",
+    documents: STANDARD_DOCS.map((label, i) => ({ id: `DOC-L${i}`, label, standard: true, askedForBy: "" as const, state: "Released" as const })),
+    passedOn: [],
+    dealStage: "Lease", viewingOutcomeNote: "Confirmed they want to proceed, no works needed.",
+    worksItems: [],
+    offers: [
+      { id: "OFFER-5", round: 1, actor: "provider", rent: "£3,700 pcm", leaseLength: "5 years", message: "", status: "Accepted", timestamp: "5 Aug 2026, 09:00" },
+    ],
+    headsOfTerms: {
+      rent: "£3,700 pcm", leaseLength: "5 years",
+      breakClause: "Mutual break at year 5", rentReview: "RPI-linked, reviewed every 3 years",
+      repairsLandlord: "Structure and exterior", repairsTenant: "Internal decoration and fixtures",
+      alterations: "", worksSummary: "", deposit: "1 month", rentFreePeriod: "",
+      permittedUse: "Supported accommodation", sublettingRights: "Provider may grant occupation to residents",
+      status: "Agreed", counterNote: "", counteredBy: null, publishedOn: "8 Aug 2026",
+    },
+    solicitorsInstructedOn: "20 Aug 2026",
+    fees: blankFees(),
+    createdOn: "1 Aug 2026",
+  },
 ];
 
 /* ---------------------------------------------------------------------------

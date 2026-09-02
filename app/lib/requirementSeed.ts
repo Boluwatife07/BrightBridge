@@ -25,7 +25,7 @@ export const seedRequirements: RequirementRecord[] = [
     extraDocs: ["Buildings insurance certificate"],
     notes: "",
     status: "Open",
-    matchedPropertyIds: ["PROP-231", "PROP-234", "PROP-250"],
+    matchedPropertyIds: ["PROP-231", "PROP-234", "PROP-250", "PROP-260"],
     postedOn: "28 Jul 2026",
     createdOn: "26 Jul 2026",
   },

@@ -29,12 +29,12 @@ export function PropertyReviewQueue({ properties, onOpen }: {
   const visible = properties.filter(p => p.status !== "Draft" && p.status !== "Withdrawn");
   const filtered = visible.filter(p =>
     filter === "awaiting" ? p.status === "Submitted" :
-    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status) :
+    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease", "Completed"].includes(p.status) :
     filter === "declined" ? p.status === "Declined" : true);
 
   const counts = {
     awaiting: visible.filter(p => p.status === "Submitted").length,
-    accepted: visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status)).length,
+    accepted: visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease", "Completed"].includes(p.status)).length,
     declined: visible.filter(p => p.status === "Declined").length,
     all: visible.length,
   };

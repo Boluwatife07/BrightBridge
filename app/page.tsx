@@ -466,6 +466,33 @@ export default function Home() {
     notify("Compliance confirmed, moving to lease");
   }
 
+  /* ---------------- lease & completion (Care Provider PRD, Phase 10-11) ----------------
+     BBC is not a party to the lease and not in the signing chain, so there is
+     no e-signing integration here — solicitors handle drafting and signing
+     entirely outside the platform. BBC has exactly two actions: instruct
+     solicitors, and mark the lease signed once told it is. */
+  function instructSolicitors(p: PropertyRecord) {
+    const apply = (x: PropertyRecord) => x.id === p.id ? { ...x, solicitorsInstructedOn: today() } : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Both parties told to instruct their solicitors");
+  }
+
+  function markLeaseSigned(p: PropertyRecord) {
+    const apply = (x: PropertyRecord): PropertyRecord => {
+      if (x.id !== p.id) return x;
+      const documents = x.documents.map(d => d.state === "On file" ? { ...d, state: "Released" as const } : d);
+      const fees =
+        x.ownership.kind === "landlord"
+          ? { ...x.fees, placementFeeStatus: "Due" as const, rentalFeeStatus: "Active" as const, leaseSignedOn: today() }
+          : { ...x.fees, introductionFeeStatus: "Payable" as const, leaseSignedOn: today() };
+      return { ...x, documents, fees, status: "Completed", dealStage: "Completed" };
+    };
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Lease signed. Documents released and fees now tracked.");
+  }
+
   /* ---------------- landing ---------------- */
   if (screen === "landing") {
     return (
@@ -564,9 +591,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 9 is built: review compliance documents once BrightBridge releases them, flag any issue with a specific document, and confirm when you're satisfied. The seeded Meir property already has most documents released, one still outstanding, ready to try. Next: lease and completion.</>}
-                {role === "partner" && <>Stage 9 is built: mark any outstanding required document as uploaded once you have it, and BrightBridge will release it to the care provider. Next: lease and completion.</>}
-                {role === "bbc" && <>Stage 9 is built: release documents to the care provider once the property source has them on file. Next: lease and completion.</>}
+                {role === "provider" && <>Stage 10 is built: this is the final stage. Once BBC marks the lease signed, the property is complete and every document is available to you. The seeded Wednesfield property already has solicitors instructed, ready to try marking it signed from BBC.</>}
+                {role === "partner" && <>Stage 10 is built: once BBC marks the lease signed, you&apos;ll see your fees here — placement and ongoing rental for a landlord, or the introduction fee if you introduced the property. This is the last stage of the deal.</>}
+                {role === "bbc" && <>Stage 10 is built, completing the full deal lifecycle: instruct solicitors once compliance is confirmed, then mark the lease signed when you hear back. There is no e-signing integration — BBC is never a party to the lease, so solicitors handle drafting and signing entirely outside the platform.</>}
               </div>
             </section>
           </div>
@@ -739,6 +766,8 @@ export default function Home() {
             onReleaseAllDocs={() => releaseAllDocs(current)}
             onFlagDocIssue={(docId, message) => flagDocIssue(current, docId, message)}
             onConfirmCompliance={() => confirmCompliance(current)}
+            onInstructSolicitors={() => instructSolicitors(current)}
+            onMarkLeaseSigned={() => markLeaseSigned(current)}
           />
         );
       })()}
