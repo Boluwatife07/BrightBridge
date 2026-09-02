@@ -245,6 +245,33 @@ export default function Home() {
     notify("Viewing cancelled");
   }
 
+  /* ---------------- viewing outcome & schedule of works (Care Provider PRD, Phase 5) ---------------- */
+  function notProceeding(p: PropertyRecord, reason: string, note: string) {
+    setProperties(prev => prev.map(x => x.id === p.id ? {
+      ...x, status: "Accepted", matchedReqId: null, dealStage: "None",
+      passedOn: [...x.passedOn, { reqId: p.matchedReqId || "", reason: note ? `${reason}. ${note}` : reason }],
+    } : x));
+    if (p.matchedReqId) setRequirements(prev => prev.map(r => r.id === p.matchedReqId ? { ...r, matchedPropertyIds: r.matchedPropertyIds.filter(id => id !== p.id) } : r));
+    notify("Outcome recorded, property returned to the accepted pool");
+    setPropModal(null);
+  }
+
+  function secondViewingNeeded(p: PropertyRecord, message: string) {
+    const v = blankViewingRequest(p.id, p.name, p.matchedReqId, message);
+    setViewings(prev => [v, ...prev]);
+    setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: "Viewing requested" } : x));
+    notify("Second viewing requested directly with the property source");
+    setPropModal(null);
+  }
+
+  function proceedWithWorks(p: PropertyRecord, works: PropertyRecord["worksItems"], note: string) {
+    setProperties(prev => prev.map(x => x.id === p.id ? {
+      ...x, status: "Offer", dealStage: "Offer", worksItems: works, viewingOutcomeNote: note,
+    } : x));
+    notify(works.length > 0 ? "Schedule of works sent to the property source" : "Confirmed as ready, moving to offer");
+    setPropModal(null);
+  }
+
   /* ---------------- landing ---------------- */
   if (screen === "landing") {
     return (
@@ -343,9 +370,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 4 is built: request a viewing on a matched property, pick from the dates the property source offers, or decline and ask for a reschedule. Next: viewing outcome and the schedule of works.</>}
-                {role === "partner" && <>Stage 4 is built: offer dates when a care provider requests a viewing, and cancel a confirmed viewing if needed, from the Viewings tab. Next: viewing outcome and the schedule of works.</>}
-                {role === "bbc" && <>Stage 4 is built: viewing dates are agreed directly between the care provider and property source. You can see every viewing in the Viewings tab, but there is nothing for you to action. Next: viewing outcome and the schedule of works.</>}
+                {role === "provider" && <>Stage 5 is built: after a confirmed viewing, log the outcome from the property detail — not proceeding, a second viewing, or proceeding with a schedule of works. The seeded Penn property already has a confirmed viewing, ready to try. Next: rent and lease length negotiation.</>}
+                {role === "partner" && <>Stage 5 is built: once the care provider logs their outcome, you will see the schedule of works (if any) directly on the property. Next: rent and lease length negotiation.</>}
+                {role === "bbc" && <>Stage 5 is built: the care provider logs the viewing outcome directly, you are not a gate here either. A declined property returns to the accepted pool with the reason visible to you. Next: rent and lease length negotiation.</>}
               </div>
             </section>
           </div>
@@ -491,6 +518,9 @@ export default function Home() {
             onPassOn={(reason) => passOnProperty(current, reason)}
             onRequestDoc={(label) => requestExtraDoc(current, label)}
             onRequestViewing={(message) => requestViewing(current, message)}
+            onNotProceeding={(reason, note) => notProceeding(current, reason, note)}
+            onSecondViewing={(message) => secondViewingNeeded(current, message)}
+            onProceedWithWorks={(works, note) => proceedWithWorks(current, works, note)}
           />
         );
       })()}

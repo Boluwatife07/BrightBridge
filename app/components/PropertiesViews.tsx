@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { PropertyRecord, RequirementRecord, DocItem, REQUIRED_DOCS } from "../lib/types";
+import { PropertyRecord, RequirementRecord, DocItem, REQUIRED_DOCS, WorksItem } from "../lib/types";
 import { PASS_ON_REASONS } from "../lib/propertySeed";
 import { propTone, docSummary, DecidePropertyPanel, MatchPanel } from "./PropertyReview";
+import { ViewingOutcomeStep, WorksListReadOnly } from "./ViewingOutcome";
 
 function Status({ tone, children }: { tone: "green" | "amber" | "grey" | "red"; children: React.ReactNode }) {
   return <span className={`status ${tone}`}>{children}</span>;
@@ -20,7 +21,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
   const visible = properties.filter(p => p.status !== "Withdrawn");
   const filtered = visible.filter(p =>
     filter === "action" ? p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained") :
-    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status) :
+    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer"].includes(p.status) :
     filter === "declined" ? p.status === "Declined" : true);
 
   return (
@@ -33,7 +34,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
         <div className="filterbar">
           <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>All <b>{visible.length}</b></button>
           <button className={filter === "action" ? "selected" : ""} onClick={() => setFilter("action")}>Needs action <b>{visible.filter(p => p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained")).length}</b></button>
-          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status)).length}</b></button>
+          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer"].includes(p.status)).length}</b></button>
           <button className={filter === "declined" ? "selected" : ""} onClick={() => setFilter("declined")}>Declined <b>{visible.filter(p => p.status === "Declined").length}</b></button>
         </div>
       </section>
@@ -64,7 +65,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
 export function ProviderPropertiesList({ properties, requirements, onOpen }: {
   properties: PropertyRecord[]; requirements: RequirementRecord[]; onOpen: (p: PropertyRecord) => void;
 }) {
-  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed"].includes(p.status));
+  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed", "Offer"].includes(p.status));
   const reqTitle = (id: string | null) => requirements.find(r => r.id === id)?.title;
 
   return (
@@ -96,6 +97,7 @@ export function ProviderPropertiesList({ properties, requirements, onOpen }: {
 
 export function PropertyDetailModal({
   role, property, requirements, isOwnProperty, onClose, onEdit, onDecide, onMatch, onPassOn, onRequestDoc, onRequestViewing,
+  onNotProceeding, onSecondViewing, onProceedWithWorks,
 }: {
   role: "bbc" | "partner" | "provider";
   property: PropertyRecord;
@@ -108,6 +110,9 @@ export function PropertyDetailModal({
   onPassOn?: (reason: string) => void;
   onRequestDoc?: (label: string) => void;
   onRequestViewing?: (message: string) => void;
+  onNotProceeding?: (reason: string, note: string) => void;
+  onSecondViewing?: (message: string) => void;
+  onProceedWithWorks?: (works: WorksItem[], note: string) => void;
   }) {
   const p = property;
   const [passingOn, setPassingOn] = useState(false);
@@ -251,10 +256,8 @@ export function PropertyDetailModal({
             <p style={{ fontSize: 12, color: "var(--muted)" }}>Viewing requested. Check the Viewings tab once the property source offers dates.</p>
           </div>
         )}
-        {role === "provider" && p.status === "Viewing confirmed" && (
-          <div className="modal-section" style={{ padding: "12px 24px" }}>
-            <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>Viewing confirmed. Check the Viewings tab for the date.</p>
-          </div>
+        {role === "provider" && p.status === "Viewing confirmed" && onNotProceeding && onSecondViewing && onProceedWithWorks && (
+          <ViewingOutcomeStep onNotProceeding={onNotProceeding} onSecondViewing={onSecondViewing} onProceed={onProceedWithWorks} />
         )}
         {role === "partner" && p.status === "Viewing requested" && (
           <div className="modal-section" style={{ padding: "12px 24px" }}>
@@ -263,9 +266,23 @@ export function PropertyDetailModal({
         )}
         {role === "partner" && p.status === "Viewing confirmed" && (
           <div className="modal-section" style={{ padding: "12px 24px" }}>
-            <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>Viewing confirmed. Check the Viewings tab for the date.</p>
+            <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>Viewing confirmed. Check the Viewings tab for the date. Waiting on the care provider to confirm whether they want to proceed.</p>
           </div>
         )}
+        {p.status === "Offer" && role !== "bbc" && (
+          <div className="modal-section" style={{ padding: "12px 24px" }}>
+            <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
+              {role === "provider" ? "You confirmed you want to proceed." : "The care provider wants to proceed."} Rent and lease length negotiation is built in the next stage.
+            </p>
+          </div>
+        )}
+        {p.status === "Offer" && role === "bbc" && (
+          <div className="modal-section" style={{ padding: "12px 24px" }}>
+            <p style={{ fontSize: 12, color: "var(--muted)" }}>Viewing outcome logged as proceeding. Offer negotiation is built in the next stage.</p>
+          </div>
+        )}
+        {(role === "bbc" || role === "partner") && <WorksListReadOnly items={p.worksItems} />}
+
         {role === "provider" && passingOn && (
           <div className="modal-section">
             <h3>Pass on this property</h3>
