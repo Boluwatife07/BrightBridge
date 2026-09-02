@@ -7,7 +7,7 @@ function Status({ tone, children }: { tone: "green" | "amber" | "grey" | "red"; 
   return <span className={`status ${tone}`}>{children}</span>;
 }
 const viewingTone = (s: ViewingRecord["status"]): "green" | "amber" | "grey" | "red" =>
-  s === "Confirmed" ? "green" : s === "Reschedule needed" ? "red" : s === "Cancelled" ? "grey" : "amber";
+  s === "Confirmed" || s === "Completed" ? "green" : s === "Reschedule needed" ? "red" : s === "Cancelled" ? "grey" : "amber";
 
 /* ---------------------------------------------------------------------------
    Offer dates form — used by the partner both for a fresh request and when
@@ -86,7 +86,7 @@ export function ViewingsList({
       {viewings.map(v => (
         <div className="panel" key={v.id} style={{ marginBottom: 14, padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-            <div><strong style={{ fontSize: 13 }}>{v.propertyName}</strong><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{v.id} · {v.reqId || "—"}</div></div>
+            <div><strong style={{ fontSize: 13 }}>{v.propertyName}</strong>{v.isSignOff && <span style={{ fontSize: 10, marginLeft: 8, padding: "2px 8px", borderRadius: 10, background: "var(--purple-soft)", color: "var(--purple)", fontWeight: 700 }}>SIGN-OFF VISIT</span>}<div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{v.id} · {v.reqId || "—"}</div></div>
             <Status tone={viewingTone(v.status)}>{v.status}</Status>
           </div>
 

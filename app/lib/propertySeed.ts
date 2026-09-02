@@ -184,6 +184,41 @@ export const seedProperties: PropertyRecord[] = [
     fees: blankFees(),
     createdOn: "3 Aug 2026",
   },
+  {
+    id: "PROP-250", partnerAccountId: "ACC-L-201", ownership: { kind: "landlord" },
+    name: "Wide-fronted house, Bilston", area: "Wolverhampton, WV14", propertyType: "HMO (up to 6 bed)",
+    bedrooms: 6, bathrooms: 2, condition: "Needs refurbishment", rent: "£3,500 pcm", leaseOffer: "5 years",
+    availableFrom: "Immediate", description: "Good layout, needs fire safety upgrades and a downstairs wet room before it is ready.",
+    images: [],
+    hasMortgage: "No", lenderConsented: "Not applicable", isLeasehold: "No", superiorLeaseAllowsSubletting: "Not applicable",
+    planningUseClass: "C3(b)", hasHmoLicence: "No", article4OrLicensingAware: "No",
+    status: "Works", declineReason: "", matchedReqId: "REQ-1048",
+    documents: standardDocs([true, true, true, true, true, false, false, false]),
+    passedOn: [],
+    dealStage: "Works", viewingOutcomeNote: "Structurally sound but needs fire safety and accessibility work before we can proceed.",
+    worksItems: [
+      { id: "WORK-201", description: "Fit FD30 self-closing fire doors to all bedrooms", responsibility: "Property source", essential: true, dueDate: "", status: "Complete" },
+      { id: "WORK-202", description: "Install interlinked smoke and heat alarms", responsibility: "Property source", essential: true, dueDate: "", status: "Complete" },
+      { id: "WORK-203", description: "Convert downstairs bathroom to a wet room", responsibility: "Property source", essential: true, dueDate: "", status: "Outstanding" },
+    ],
+    offers: [
+      { id: "OFFER-3", round: 1, actor: "provider", rent: "£3,500 pcm", leaseLength: "5 years", message: "", status: "Accepted", timestamp: "18 Aug 2026, 15:12" },
+    ],
+    headsOfTerms: {
+      rent: "£3,500 pcm", leaseLength: "5 years",
+      breakClause: "Mutual break at year 5",
+      rentReview: "RPI-linked, reviewed every 3 years",
+      repairsLandlord: "Structure and exterior",
+      repairsTenant: "Internal decoration and fixtures",
+      alterations: "Fire doors, wet room conversion",
+      worksSummary: "Fit FD30 self-closing fire doors to all bedrooms (Property source, essential); Install interlinked smoke and heat alarms (Property source, essential); Convert downstairs bathroom to a wet room (Property source, essential)",
+      deposit: "1 month", rentFreePeriod: "", permittedUse: "Supported accommodation",
+      sublettingRights: "Provider may grant occupation to residents",
+      status: "Agreed", counterNote: "", counteredBy: null, publishedOn: "20 Aug 2026",
+    },
+    fees: blankFees(),
+    createdOn: "10 Aug 2026",
+  },
 ];
 
 /* ---------------------------------------------------------------------------

@@ -148,7 +148,7 @@ export const COMMON_EXTRA_DOCS = [
    Confirms immediately, no BBC sign-off (P2 in both PRDs).
 =========================================================================== */
 
-export type ViewingStatus = "Requested" | "Dates offered" | "Confirmed" | "Reschedule needed" | "Cancelled";
+export type ViewingStatus = "Requested" | "Dates offered" | "Confirmed" | "Reschedule needed" | "Cancelled" | "Completed";
 
 export type ViewingRecord = {
   id: string;

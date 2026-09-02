@@ -228,7 +228,9 @@ export default function Home() {
 
   function pickDate(v: ViewingRecord, date: string) {
     setViewings(prev => prev.map(x => x.id === v.id ? { ...x, confirmedDate: date, status: "Confirmed" } : x));
-    setProperties(prev => prev.map(p => p.id === v.propertyId ? { ...p, status: "Viewing confirmed" } : p));
+    if (!v.isSignOff) {
+      setProperties(prev => prev.map(p => p.id === v.propertyId ? { ...p, status: "Viewing confirmed" } : p));
+    }
     notify("Date confirmed with the property source");
   }
 
@@ -361,9 +363,16 @@ export default function Home() {
   function acceptHoT(p: PropertyRecord) {
     const apply = (x: PropertyRecord) => {
       if (x.id !== p.id || !x.headsOfTerms) return x;
+      // Per the Care Provider PRD: if no works were needed (the provider
+      // said the property was ready as-is back at the viewing outcome),
+      // the works and sign-off phase is skipped entirely.
+      const skipWorks = x.worksItems.length === 0;
+      const nextStatus: PropertyRecord["status"] = skipWorks ? "Compliance review" : "Works";
+      const nextStage: PropertyRecord["dealStage"] = skipWorks ? "Compliance review" : "Works";
       return {
         ...x, headsOfTerms: { ...x.headsOfTerms, status: "Agreed" as const, counteredBy: null },
-        status: "Works" as const, dealStage: "Works" as const,
+        status: nextStatus,
+        dealStage: nextStage,
       };
     };
     setProperties(prev => prev.map(apply));
@@ -379,6 +388,47 @@ export default function Home() {
     setProperties(prev => prev.map(apply));
     setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
     notify("Counter sent");
+  }
+
+  /* ---------------- works completion & sign-off (Care Provider PRD, Phase 8) ---------------- */
+  function markWorkItemComplete(p: PropertyRecord, itemId: string) {
+    const apply = (x: PropertyRecord) => x.id === p.id
+      ? { ...x, worksItems: x.worksItems.map(i => i.id === itemId ? { ...i, status: "Complete" as const } : i) }
+      : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Item marked complete");
+  }
+
+  function requestSignOffVisit(p: PropertyRecord) {
+    const v = blankViewingRequest(p.id, p.name, p.matchedReqId, "All agreed works are complete, ready for sign-off.");
+    v.isSignOff = true;
+    setViewings(prev => [v, ...prev]);
+    notify("Sign-off visit requested directly with the property source");
+  }
+
+  function approveSignOff(p: PropertyRecord) {
+    // consume the confirmed sign-off viewing so it doesn't re-trigger this step
+    setViewings(prev => {
+      const mine = prev.filter(v => v.propertyId === p.id && v.isSignOff && v.status === "Confirmed");
+      const latest = mine[0];
+      return prev.map(v => latest && v.id === latest.id ? { ...v, status: "Completed" as const } : v);
+    });
+    setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: "Compliance review", dealStage: "Compliance review" } : x));
+    setSelectedProp(prev => prev && prev.id === p.id ? { ...prev, status: "Compliance review", dealStage: "Compliance review" } : prev);
+    notify("Works signed off, moving to compliance review");
+  }
+
+  function raiseSnagging(p: PropertyRecord, items: PropertyRecord["worksItems"]) {
+    setViewings(prev => {
+      const mine = prev.filter(v => v.propertyId === p.id && v.isSignOff && v.status === "Confirmed");
+      const latest = mine[0];
+      return prev.map(v => latest && v.id === latest.id ? { ...v, status: "Completed" as const } : v);
+    });
+    const apply = (x: PropertyRecord) => x.id === p.id ? { ...x, worksItems: [...x.worksItems, ...items] } : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Snagging list sent to the property source");
   }
 
   /* ---------------- landing ---------------- */
@@ -479,9 +529,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 7 is built: BrightBridge drafts heads of terms from the agreed offer, and real identities are shared for the first time once it is published. The seeded Tunstall property already has a published document awaiting the property source&apos;s response. Next: schedule of works completion and sign-off.</>}
-                {role === "partner" && <>Stage 7 is built: once BrightBridge publishes heads of terms, you see the care provider&apos;s real name for the first time and can accept or counter the terms. Next: schedule of works completion and sign-off.</>}
-                {role === "bbc" && <>Stage 7 is built: draft and publish heads of terms from the agreed offer terms. Publishing is the moment both parties&apos; real identities are shared. After that, they negotiate the finer terms directly. Next: schedule of works completion and sign-off.</>}
+                {role === "provider" && <>Stage 8 is built: once all works are marked complete, request a sign-off visit, then sign off or raise snagging from the property detail. The seeded Bilston property has two of three items already complete, ready to try. If no works were needed, this whole phase is skipped automatically. Next: compliance document review.</>}
+                {role === "partner" && <>Stage 8 is built: BrightBridge marks each works item complete as you finish it, and once all are done the care provider will request a sign-off visit through the Viewings tab, same as the original viewing. Next: compliance document review.</>}
+                {role === "bbc" && <>Stage 8 is built: mark works items complete as the property source confirms them. You are the only one who can, since you are verifying with whoever did the work. Next: compliance document review.</>}
               </div>
             </section>
           </div>
@@ -640,6 +690,16 @@ export default function Home() {
             onPublishHoT={(fields) => publishHoT(current, fields)}
             onAcceptHoT={() => acceptHoT(current)}
             onCounterHoT={(note) => counterHoT(current, note)}
+            onMarkWorkItemComplete={(itemId) => markWorkItemComplete(current, itemId)}
+            signOffStatus={(() => {
+              const mine = viewings.filter(v => v.propertyId === current.id && v.isSignOff);
+              if (mine.some(v => v.status === "Confirmed")) return "confirmed";
+              if (mine.some(v => v.status === "Requested" || v.status === "Dates offered" || v.status === "Reschedule needed")) return "pending";
+              return "none";
+            })()}
+            onRequestSignOff={() => requestSignOffVisit(current)}
+            onApproveSignOff={() => approveSignOff(current)}
+            onRaiseSnagging={(items) => raiseSnagging(current, items)}
           />
         );
       })()}
