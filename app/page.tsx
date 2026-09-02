@@ -4,13 +4,18 @@ import { useState } from "react";
 import { RegisterProvider, RegisterPartner } from "./components/Registration";
 import { RequirementForm, RequirementFields } from "./components/RequirementForm";
 import { RequirementsList, RequirementDetail } from "./components/Requirements";
-import { ProviderAccount, PartnerAccount, Role, RequirementRecord } from "./lib/types";
+import { PropertySubmissionForm, PropertyFields } from "./components/PropertySubmissionForm";
+import { PropertyReviewQueue } from "./components/PropertyReview";
+import { PartnerPropertiesList, ProviderPropertiesList, PropertyDetailModal } from "./components/PropertiesViews";
+import { ProviderAccount, PartnerAccount, Role, RequirementRecord, PropertyRecord, DocItem, DocState } from "./lib/types";
 import { seedProviderAccount, seedLandlordAccount, seedIntroducerAccount } from "./lib/seed";
 import { seedRequirements, blankRequirement, duplicateRequirement } from "./lib/requirementSeed";
+import { seedProperties, blankProperty } from "./lib/propertySeed";
 
 type Screen = "landing" | "onboardProvider" | "onboardPartner" | "app";
 type View = "overview" | "requirements" | "properties" | "viewings" | "activity" | "settings";
 type ReqModal = "form" | "detail" | null;
+type PropModal = "form" | "detail" | null;
 
 const NAV: { id: View; label: string; icon: string; builtInStage: number }[] = [
   { id: "overview", label: "Overview", icon: "⌂", builtInStage: 1 },
@@ -21,7 +26,7 @@ const NAV: { id: View; label: string; icon: string; builtInStage: number }[] = [
   { id: "settings", label: "Settings", icon: "⚙", builtInStage: 1 },
 ];
 
-const CURRENT_STAGE = 2;
+const CURRENT_STAGE = 3;
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
@@ -35,6 +40,13 @@ export default function Home() {
   const [reqModal, setReqModal] = useState<ReqModal>(null);
   const [selectedReq, setSelectedReq] = useState<RequirementRecord | null>(null);
   const [editingReq, setEditingReq] = useState<RequirementRecord | null>(null);
+
+  const [properties, setProperties] = useState<PropertyRecord[]>(seedProperties);
+  const [propModal, setPropModal] = useState<PropModal>(null);
+  const [selectedProp, setSelectedProp] = useState<PropertyRecord | null>(null);
+  const [editingProp, setEditingProp] = useState<PropertyRecord | null>(null);
+  const [submitForReqId, setSubmitForReqId] = useState<string | null>(null);
+
   const [toast, setToast] = useState("");
 
   function notify(message: string) { setToast(message); setTimeout(() => setToast(""), 3200); }
@@ -114,6 +126,85 @@ export default function Home() {
     notify("Duplicated as a new draft");
     setEditingReq(copy);
     setReqModal("form");
+  }
+
+  /* ---------------- properties (Property Partner PRD, Phase 3-4) ---------------- */
+  const currentPartnerId = partnerAccount.id;
+  const isOwner = partnerVariant === "landlord";
+
+  function openSubmitProperty(forReqId: string | null = null) {
+    setEditingProp(null);
+    setSubmitForReqId(forReqId);
+    setPropModal("form");
+  }
+  function openEditProperty(p: PropertyRecord) {
+    setEditingProp(p);
+    setSubmitForReqId(p.matchedReqId);
+    setSelectedProp(null);
+    setPropModal("form");
+  }
+  function openPropertyDetail(p: PropertyRecord) { setSelectedProp(p); setPropModal("detail"); }
+  function closePropModal() { setPropModal(null); setEditingProp(null); setSubmitForReqId(null); }
+
+  function saveProperty(fields: PropertyFields, requirementId: string | null, uploadedLabels: string[], asDraft: boolean) {
+    const applyUploads = (docs: DocItem[]): DocItem[] =>
+      docs.map(d => uploadedLabels.includes(d.label) ? { ...d, state: "On file" as DocState } : d);
+
+    if (editingProp) {
+      setProperties(prev => prev.map(p => p.id === editingProp.id ? {
+        ...p, ...fields,
+        matchedReqId: requirementId,
+        documents: applyUploads(p.documents),
+        status: asDraft ? "Draft" : "Submitted",
+        declineReason: asDraft ? p.declineReason : "",
+      } : p));
+      notify(asDraft ? "Saved as draft" : (editingProp.status === "Declined" ? "Re-submitted, BrightBridge will take another look" : "Property updated"));
+    } else {
+      const base = blankProperty(currentPartnerId, isOwner);
+      const p: PropertyRecord = {
+        ...base, ...fields,
+        matchedReqId: requirementId,
+        documents: applyUploads(base.documents),
+        status: asDraft ? "Draft" : "Submitted",
+      };
+      setProperties(prev => [p, ...prev]);
+      notify(asDraft ? "Saved as draft" : (requirementId ? `Property submitted against ${requirementId}, BrightBridge will review it` : "Property submitted, BrightBridge will review it"));
+    }
+    closePropModal();
+  }
+
+  function decideProperty(p: PropertyRecord, decision: "Accepted" | "Declined", reason: string) {
+    setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: decision, declineReason: reason } : x));
+    notify(decision === "Accepted" ? "Property accepted, ready to match to a requirement" : "Property declined, the partner has been told why");
+    setPropModal(null);
+  }
+
+  function matchProperty(p: PropertyRecord, reqId: string) {
+    setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: "Matched", matchedReqId: reqId } : x));
+    setRequirements(prev => prev.map(r => {
+      if (r.id === reqId) return r.matchedPropertyIds.includes(p.id) ? r : { ...r, matchedPropertyIds: [...r.matchedPropertyIds, p.id] };
+      // if the property was previously matched to a different requirement, unlink it there
+      if (p.matchedReqId && r.id === p.matchedReqId && r.id !== reqId) return { ...r, matchedPropertyIds: r.matchedPropertyIds.filter(id => id !== p.id) };
+      return r;
+    }));
+    notify(`Matched to ${reqId}, the care provider has been notified`);
+    setPropModal(null);
+  }
+
+  function passOnProperty(p: PropertyRecord, reason: string) {
+    setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: "Accepted", matchedReqId: null, passedOn: [...x.passedOn, { reqId: p.matchedReqId || "", reason }] } : x));
+    if (p.matchedReqId) setRequirements(prev => prev.map(r => r.id === p.matchedReqId ? { ...r, matchedPropertyIds: r.matchedPropertyIds.filter(id => id !== p.id) } : r));
+    notify("Passed on, BrightBridge has the reason and will keep looking");
+    setPropModal(null);
+  }
+
+  function requestExtraDoc(p: PropertyRecord, label: string) {
+    if (p.documents.some(d => d.label.toLowerCase() === label.toLowerCase())) { notify("That document is already on the list"); return; }
+    const newDoc: DocItem = { id: `DOC-${Date.now()}`, label, standard: false, askedForBy: "provider", state: "Requested" };
+    const apply = (x: PropertyRecord) => x.id === p.id ? { ...x, documents: [...x.documents, newDoc] } : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Sent to BrightBridge, we will chase the property source");
   }
 
   /* ---------------- landing ---------------- */
@@ -214,9 +305,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider"
-                  ? <>Stage 2 is built: post, edit, withdraw, re-publish and duplicate requirements from the Requirements tab. Next: Stage 3 builds property submission and matching.</>
-                  : <>Stage 2 built the Requirements flow for care providers. Next: Stage 3 builds property submission and matching.</>}
+                {role === "provider" && <>Stage 3 is built: matched properties now appear in your Properties tab and inside each requirement&apos;s detail. Next: Stage 4 builds the viewing flow.</>}
+                {role === "partner" && <>Stage 3 is built: submit a property (with the ownership question, planning and permissions checks, and document upload) from the Properties tab, and track its status through BBC review. Next: Stage 4 builds the viewing flow.</>}
+                {role === "bbc" && <>Stage 3 is built: review submitted properties, accept or decline with a reason, and match accepted properties to a live requirement from the Properties tab. Next: Stage 4 builds the viewing flow.</>}
               </div>
             </section>
           </div>
@@ -235,15 +326,38 @@ export default function Home() {
             <section className="panel" style={{ padding: 40, textAlign: "center" }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>🛠</div>
               <h2 style={{ fontSize: 15 }}>
-                {role === "partner" ? "Browsing requirements — coming in Stage 3" : "BBC requirement oversight — not part of the current build"}
+                {role === "partner" ? "Browsing requirements from here — not yet built" : "BBC requirement oversight — not part of the current build"}
               </h2>
               <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
                 {role === "partner"
-                  ? "Requirements now exist on the platform (created by care providers). Property partners will be able to browse and submit against them once Stage 3 (property submission) is built."
+                  ? "You can already submit a property against a specific requirement from the Properties tab (the submission form lists every live requirement). A dedicated page for browsing requirements before submitting is a future refinement."
                   : "BBC does not review or approve requirements — they go live directly. There is no BBC action needed here."}
               </p>
             </section>
           </div>
+        )}
+
+        {view === "properties" && role === "bbc" && (
+          <PropertyReviewQueue properties={properties} onOpen={openPropertyDetail} />
+        )}
+
+        {view === "properties" && role === "partner" && (
+          <PartnerPropertiesList
+            properties={properties.filter(p => p.partnerAccountId === currentPartnerId)}
+            onOpen={openPropertyDetail}
+            onCreate={() => openSubmitProperty(null)}
+          />
+        )}
+
+        {view === "properties" && role === "provider" && (
+          <ProviderPropertiesList
+            properties={properties.filter(p => {
+              const req = requirements.find(r => r.id === p.matchedReqId);
+              return req?.operatorAccountId === providerAccount.id;
+            })}
+            requirements={requirements}
+            onOpen={openPropertyDetail}
+          />
         )}
 
         {view === "settings" && (
@@ -255,7 +369,7 @@ export default function Home() {
           </div>
         )}
 
-        {view !== "overview" && view !== "settings" && view !== "requirements" && (
+        {view !== "overview" && view !== "settings" && view !== "requirements" && view !== "properties" && (
           <div className="page-content">
             <section className="panel" style={{ padding: 40, textAlign: "center" }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>🛠</div>
@@ -278,6 +392,8 @@ export default function Home() {
       {reqModal === "detail" && selectedReq && (
         <RequirementDetail
           requirement={requirements.find(r => r.id === selectedReq.id) || selectedReq}
+          properties={properties}
+          onOpenProperty={(p) => { setReqModal(null); openPropertyDetail(p); }}
           onClose={() => setReqModal(null)}
           onEdit={() => openEditRequirement(requirements.find(r => r.id === selectedReq.id) || selectedReq)}
           onWithdraw={() => withdrawRequirement(selectedReq)}
@@ -285,6 +401,44 @@ export default function Home() {
           onDuplicate={() => duplicateAndOpen(requirements.find(r => r.id === selectedReq.id) || selectedReq)}
         />
       )}
+
+      {propModal === "form" && (
+        <div className="modal-backdrop" onMouseDown={closePropModal}>
+          <div className="modal" style={{ width: "min(780px,100%)" }} onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>{editingProp ? `Edit ${editingProp.id}` : submitForReqId ? `Submit a property for ${submitForReqId}` : "Submit a property"}</h2>
+              <button className="icon-button" onClick={closePropModal}>×</button>
+            </div>
+            <PropertySubmissionForm
+              isOwner={isOwner}
+              requirements={requirements.filter(r => r.status === "Open")}
+              defaultRequirementId={submitForReqId}
+              existingDocuments={editingProp?.documents}
+              onCancel={closePropModal}
+              onSubmit={saveProperty}
+            />
+          </div>
+        </div>
+      )}
+
+      {propModal === "detail" && selectedProp && (() => {
+        const current = properties.find(p => p.id === selectedProp.id) || selectedProp;
+        const isOwnProperty = role === "partner" && current.partnerAccountId === currentPartnerId;
+        return (
+          <PropertyDetailModal
+            role={role === "bbc" ? "bbc" : role === "partner" ? "partner" : "provider"}
+            property={current}
+            requirements={requirements}
+            isOwnProperty={isOwnProperty}
+            onClose={() => setPropModal(null)}
+            onEdit={() => openEditProperty(current)}
+            onDecide={(decision, reason) => decideProperty(current, decision, reason)}
+            onMatch={(reqId) => matchProperty(current, reqId)}
+            onPassOn={(reason) => passOnProperty(current, reason)}
+            onRequestDoc={(label) => requestExtraDoc(current, label)}
+          />
+        );
+      })()}
 
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
     </div>
