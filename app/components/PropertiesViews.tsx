@@ -6,6 +6,7 @@ import { PASS_ON_REASONS } from "../lib/propertySeed";
 import { propTone, docSummary, DecidePropertyPanel, MatchPanel } from "./PropertyReview";
 import { ViewingOutcomeStep, WorksListReadOnly } from "./ViewingOutcome";
 import { OfferStep } from "./Offer";
+import { HeadsOfTermsStep, HoTDraftFields } from "./HeadsOfTerms";
 
 function Status({ tone, children }: { tone: "green" | "amber" | "grey" | "red"; children: React.ReactNode }) {
   return <span className={`status ${tone}`}>{children}</span>;
@@ -22,7 +23,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
   const visible = properties.filter(p => p.status !== "Withdrawn");
   const filtered = visible.filter(p =>
     filter === "action" ? p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained") :
-    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms"].includes(p.status) :
+    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works"].includes(p.status) :
     filter === "declined" ? p.status === "Declined" : true);
 
   return (
@@ -35,7 +36,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
         <div className="filterbar">
           <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>All <b>{visible.length}</b></button>
           <button className={filter === "action" ? "selected" : ""} onClick={() => setFilter("action")}>Needs action <b>{visible.filter(p => p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained")).length}</b></button>
-          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms"].includes(p.status)).length}</b></button>
+          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works"].includes(p.status)).length}</b></button>
           <button className={filter === "declined" ? "selected" : ""} onClick={() => setFilter("declined")}>Declined <b>{visible.filter(p => p.status === "Declined").length}</b></button>
         </div>
       </section>
@@ -66,7 +67,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
 export function ProviderPropertiesList({ properties, requirements, onOpen }: {
   properties: PropertyRecord[]; requirements: RequirementRecord[]; onOpen: (p: PropertyRecord) => void;
 }) {
-  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms"].includes(p.status));
+  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works"].includes(p.status));
   const reqTitle = (id: string | null) => requirements.find(r => r.id === id)?.title;
 
   return (
@@ -100,6 +101,7 @@ export function PropertyDetailModal({
   role, property, requirements, isOwnProperty, onClose, onEdit, onDecide, onMatch, onPassOn, onRequestDoc, onRequestViewing,
   onNotProceeding, onSecondViewing, onProceedWithWorks,
   onSubmitOffer, onAcceptOffer, onCounterOffer, onRejectOffer, onWithdrawOffer,
+  providerName, partnerName, onPublishHoT, onAcceptHoT, onCounterHoT,
 }: {
   role: "bbc" | "partner" | "provider";
   property: PropertyRecord;
@@ -120,8 +122,18 @@ export function PropertyDetailModal({
   onCounterOffer?: (rent: string, leaseLength: string, message: string) => void;
   onRejectOffer?: (message: string) => void;
   onWithdrawOffer?: () => void;
+  /** Display names used once heads of terms reveals real identities.
+   *  Kept as plain strings so this component never needs to know about
+   *  account shapes — the caller resolves them. */
+  providerName?: string;
+  partnerName?: string;
+  onPublishHoT?: (fields: HoTDraftFields) => void;
+  onAcceptHoT?: () => void;
+  onCounterHoT?: (note: string) => void;
   }) {
   const p = property;
+  const providerLabel = providerName || "Care provider";
+  const partnerLabel = partnerName || "Property source";
   const [passingOn, setPassingOn] = useState(false);
   const [passReason, setPassReason] = useState("");
   const [requestingDoc, setRequestingDoc] = useState(false);
@@ -287,14 +299,28 @@ export function PropertyDetailModal({
             onWithdraw={onWithdrawOffer}
           />
         )}
-        {p.status === "Heads of terms" && (
+        {p.status === "Heads of terms" && onPublishHoT && onAcceptHoT && onCounterHoT && (
+          <HeadsOfTermsStep
+            role={role}
+            hot={p.headsOfTerms}
+            rent={p.rent}
+            leaseLength={p.leaseOffer}
+            worksSummary={p.worksItems.map(w => `${w.description} (${w.responsibility}${w.essential ? ", essential" : ""})`).join("; ")}
+            providerName={providerLabel}
+            partnerName={partnerLabel}
+            onPublish={onPublishHoT}
+            onAccept={onAcceptHoT}
+            onCounter={onCounterHoT}
+          />
+        )}
+        {p.status === "Works" && (
           <div className="modal-section" style={{ padding: "12px 24px" }}>
             <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
-              Terms agreed: {p.rent} on a {p.leaseOffer} lease. Heads of terms is built in the next stage.
+              Heads of terms agreed. Tracking works completion and sign-off is built in the next stage.
             </p>
           </div>
         )}
-        {(role === "bbc" || role === "partner") && <WorksListReadOnly items={p.worksItems} />}
+        {(role === "bbc" || role === "partner") && p.status !== "Heads of terms" && <WorksListReadOnly items={p.worksItems} />}
 
         {role === "provider" && passingOn && (
           <div className="modal-section">

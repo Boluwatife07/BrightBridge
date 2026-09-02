@@ -7,8 +7,9 @@ import { RequirementsList, RequirementDetail } from "./components/Requirements";
 import { PropertySubmissionForm, PropertyFields } from "./components/PropertySubmissionForm";
 import { PropertyReviewQueue } from "./components/PropertyReview";
 import { PartnerPropertiesList, ProviderPropertiesList, PropertyDetailModal } from "./components/PropertiesViews";
+import { HoTDraftFields } from "./components/HeadsOfTerms";
 import { ViewingsList } from "./components/Viewings";
-import { ProviderAccount, PartnerAccount, Role, RequirementRecord, PropertyRecord, DocItem, DocState, ViewingRecord, OfferRound, nextId, now } from "./lib/types";
+import { ProviderAccount, PartnerAccount, Role, RequirementRecord, PropertyRecord, DocItem, DocState, ViewingRecord, OfferRound, HeadsOfTerms, nextId, now, today } from "./lib/types";
 import { seedProviderAccount, seedLandlordAccount, seedIntroducerAccount } from "./lib/seed";
 import { seedRequirements, blankRequirement, duplicateRequirement } from "./lib/requirementSeed";
 import { seedProperties, blankProperty } from "./lib/propertySeed";
@@ -319,6 +320,24 @@ export default function Home() {
     notify("Offer rejected");
   }
 
+  /* ---------------- identity resolution for heads of terms ----------------
+     Resolves real names from the PROPERTY's actual owner/requirement, not
+     from whichever demo persona happens to be selected right now — a
+     provider can view a property owned by either seeded partner account,
+     and showing the wrong name here would defeat the point of this stage. */
+  function resolvePartnerName(p: PropertyRecord): string {
+    if (p.partnerAccountId === seedLandlordAccount.id) return seedLandlordAccount.fullName;
+    if (p.partnerAccountId === seedIntroducerAccount.id) return seedIntroducerAccount.companyName || seedIntroducerAccount.fullName;
+    if (p.partnerAccountId === partnerAccount.id) return partnerAccount.companyName || partnerAccount.fullName;
+    return "Property source";
+  }
+  function resolveProviderName(p: PropertyRecord): string {
+    const req = requirements.find(r => r.id === p.matchedReqId);
+    if (req?.operatorAccountId === providerAccount.id) return providerAccount.organisationName;
+    if (req?.operatorAccountId === seedProviderAccount.id) return seedProviderAccount.organisationName;
+    return "Care provider";
+  }
+
   function withdrawOffer(p: PropertyRecord) {
     const apply = (x: PropertyRecord) => {
       if (x.id !== p.id || x.offers.length === 0) return x;
@@ -328,6 +347,38 @@ export default function Home() {
     setProperties(prev => prev.map(apply));
     setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
     notify("Offer withdrawn");
+  }
+
+  /* ---------------- heads of terms (Care Provider PRD, Phase 7) ---------------- */
+  function publishHoT(p: PropertyRecord, fields: HoTDraftFields) {
+    const hot: HeadsOfTerms = { ...fields, status: "Published", counterNote: "", counteredBy: null, publishedOn: today() };
+    const apply = (x: PropertyRecord) => x.id === p.id ? { ...x, headsOfTerms: hot } : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Heads of terms published. Real identities are now shared between both parties.");
+  }
+
+  function acceptHoT(p: PropertyRecord) {
+    const apply = (x: PropertyRecord) => {
+      if (x.id !== p.id || !x.headsOfTerms) return x;
+      return {
+        ...x, headsOfTerms: { ...x.headsOfTerms, status: "Agreed" as const, counteredBy: null },
+        status: "Works" as const, dealStage: "Works" as const,
+      };
+    };
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Terms agreed by both parties");
+  }
+
+  function counterHoT(p: PropertyRecord, note: string) {
+    const counterer = role === "provider" ? "provider" : "partner";
+    const apply = (x: PropertyRecord) => x.id === p.id && x.headsOfTerms
+      ? { ...x, headsOfTerms: { ...x.headsOfTerms, status: "Countered" as const, counterNote: note, counteredBy: counterer as "provider" | "partner" } }
+      : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Counter sent");
   }
 
   /* ---------------- landing ---------------- */
@@ -428,9 +479,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 6 is built: propose rent and lease length, and respond to counters, directly from the property detail. The seeded Fenton property already has an offer awaiting a response, ready to try from the partner side. Next: heads of terms.</>}
-                {role === "partner" && <>Stage 6 is built: accept, counter, or reject an offer from the care provider, directly on the property. Once agreed, the terms lock in and carry forward. Next: heads of terms.</>}
-                {role === "bbc" && <>Stage 6 is built: rent and lease length are negotiated directly between the care provider and property source. You can see the full history but there is nothing for you to action. Next: heads of terms.</>}
+                {role === "provider" && <>Stage 7 is built: BrightBridge drafts heads of terms from the agreed offer, and real identities are shared for the first time once it is published. The seeded Tunstall property already has a published document awaiting the property source&apos;s response. Next: schedule of works completion and sign-off.</>}
+                {role === "partner" && <>Stage 7 is built: once BrightBridge publishes heads of terms, you see the care provider&apos;s real name for the first time and can accept or counter the terms. Next: schedule of works completion and sign-off.</>}
+                {role === "bbc" && <>Stage 7 is built: draft and publish heads of terms from the agreed offer terms. Publishing is the moment both parties&apos; real identities are shared. After that, they negotiate the finer terms directly. Next: schedule of works completion and sign-off.</>}
               </div>
             </section>
           </div>
@@ -584,6 +635,11 @@ export default function Home() {
             onCounterOffer={(rent, leaseLength, message) => counterOffer(current, rent, leaseLength, message)}
             onRejectOffer={(message) => rejectOffer(current, message)}
             onWithdrawOffer={() => withdrawOffer(current)}
+            providerName={resolveProviderName(current)}
+            partnerName={resolvePartnerName(current)}
+            onPublishHoT={(fields) => publishHoT(current, fields)}
+            onAcceptHoT={() => acceptHoT(current)}
+            onCounterHoT={(note) => counterHoT(current, note)}
           />
         );
       })()}

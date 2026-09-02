@@ -234,6 +234,9 @@ export type HeadsOfTerms = {
   sublettingRights: string;
   status: HoTStatus;
   counterNote: string;
+  /** Whose counter is currently on the table — determines whose turn it is
+   *  to respond. Null once agreed or before any counter has happened. */
+  counteredBy: "provider" | "partner" | null;
   publishedOn: string;
 };
 

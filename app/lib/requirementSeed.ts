@@ -49,7 +49,7 @@ export const seedRequirements: RequirementRecord[] = [
     extraDocs: ["Planning use class confirmation"],
     notes: "",
     status: "Open",
-    matchedPropertyIds: ["PROP-240"],
+    matchedPropertyIds: ["PROP-240", "PROP-245"],
     postedOn: "4 Aug 2026",
     createdOn: "2 Aug 2026",
   },
