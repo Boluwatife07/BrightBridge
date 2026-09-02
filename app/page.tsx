@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import { RegisterProvider, RegisterPartner } from "./components/Registration";
-import { ProviderAccount, PartnerAccount, Role } from "./lib/types";
+import { RequirementForm, RequirementFields } from "./components/RequirementForm";
+import { RequirementsList, RequirementDetail } from "./components/Requirements";
+import { ProviderAccount, PartnerAccount, Role, RequirementRecord } from "./lib/types";
 import { seedProviderAccount, seedLandlordAccount, seedIntroducerAccount } from "./lib/seed";
+import { seedRequirements, blankRequirement, duplicateRequirement } from "./lib/requirementSeed";
 
 type Screen = "landing" | "onboardProvider" | "onboardPartner" | "app";
 type View = "overview" | "requirements" | "properties" | "viewings" | "activity" | "settings";
+type ReqModal = "form" | "detail" | null;
 
 const NAV: { id: View; label: string; icon: string; builtInStage: number }[] = [
   { id: "overview", label: "Overview", icon: "⌂", builtInStage: 1 },
@@ -17,7 +21,7 @@ const NAV: { id: View; label: string; icon: string; builtInStage: number }[] = [
   { id: "settings", label: "Settings", icon: "⚙", builtInStage: 1 },
 ];
 
-const CURRENT_STAGE = 1;
+const CURRENT_STAGE = 2;
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
@@ -26,6 +30,14 @@ export default function Home() {
   const [providerAccount, setProviderAccount] = useState<ProviderAccount>(seedProviderAccount);
   const [partnerAccount, setPartnerAccount] = useState<PartnerAccount>(seedLandlordAccount);
   const [partnerVariant, setPartnerVariant] = useState<"landlord" | "introducer">("landlord");
+
+  const [requirements, setRequirements] = useState<RequirementRecord[]>(seedRequirements);
+  const [reqModal, setReqModal] = useState<ReqModal>(null);
+  const [selectedReq, setSelectedReq] = useState<RequirementRecord | null>(null);
+  const [editingReq, setEditingReq] = useState<RequirementRecord | null>(null);
+  const [toast, setToast] = useState("");
+
+  function notify(message: string) { setToast(message); setTimeout(() => setToast(""), 3200); }
 
   function enterAppAs(next: Role) {
     setRole(next);
@@ -53,6 +65,55 @@ export default function Home() {
     else if (role === "provider") { setPartnerVariant("landlord"); setPartnerAccount(seedLandlordAccount); enterAppAs("partner"); }
     else if (role === "partner" && partnerVariant === "landlord") { setPartnerVariant("introducer"); setPartnerAccount(seedIntroducerAccount); enterAppAs("partner"); }
     else enterAppAs("bbc");
+  }
+
+  /* ---------------- requirements (Care Provider PRD, Phase 2) ---------------- */
+  function openCreateRequirement() { setEditingReq(null); setReqModal("form"); }
+  function openEditRequirement(r: RequirementRecord) { setEditingReq(r); setSelectedReq(null); setReqModal("form"); }
+  function openRequirementDetail(r: RequirementRecord) { setSelectedReq(r); setReqModal("detail"); }
+  function closeReqModal() { setReqModal(null); setEditingReq(null); }
+
+  function saveRequirement(fields: RequirementFields, asDraft: boolean) {
+    if (editingReq) {
+      setRequirements(prev => prev.map(r => r.id === editingReq.id ? {
+        ...r, ...fields,
+        status: asDraft ? "Draft" : "Open",
+        postedOn: !asDraft && !r.postedOn ? new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : r.postedOn,
+      } : r));
+      notify(asDraft ? "Saved as draft" : "Requirement updated");
+    } else {
+      const r: RequirementRecord = {
+        ...blankRequirement(providerAccount.id), ...fields,
+        status: asDraft ? "Draft" : "Open",
+        postedOn: asDraft ? "" : new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      };
+      setRequirements(prev => [r, ...prev]);
+      notify(asDraft ? "Saved as draft" : `${r.id} is live, every property partner covering ${fields.area} has been notified`);
+    }
+    closeReqModal();
+  }
+
+  function withdrawRequirement(r: RequirementRecord) {
+    setRequirements(prev => prev.map(x => x.id === r.id ? { ...x, status: "Withdrawn" } : x));
+    notify("Requirement withdrawn");
+    setReqModal(null);
+  }
+
+  function rePublishRequirement(r: RequirementRecord) {
+    setRequirements(prev => prev.map(x => x.id === r.id ? {
+      ...x, status: "Open",
+      postedOn: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+    } : x));
+    notify("Requirement is live again");
+    setReqModal(null);
+  }
+
+  function duplicateAndOpen(r: RequirementRecord) {
+    const copy = duplicateRequirement(r);
+    setRequirements(prev => [copy, ...prev]);
+    notify("Duplicated as a new draft");
+    setEditingReq(copy);
+    setReqModal("form");
   }
 
   /* ---------------- landing ---------------- */
@@ -153,8 +214,34 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                Next: Stage 2 builds the Requirements flow (post, edit, withdraw, duplicate) on top of this account data.
+                {role === "provider"
+                  ? <>Stage 2 is built: post, edit, withdraw, re-publish and duplicate requirements from the Requirements tab. Next: Stage 3 builds property submission and matching.</>
+                  : <>Stage 2 built the Requirements flow for care providers. Next: Stage 3 builds property submission and matching.</>}
               </div>
+            </section>
+          </div>
+        )}
+
+        {view === "requirements" && role === "provider" && (
+          <RequirementsList
+            requirements={requirements.filter(r => r.operatorAccountId === providerAccount.id)}
+            onOpen={openRequirementDetail}
+            onCreate={openCreateRequirement}
+          />
+        )}
+
+        {view === "requirements" && role !== "provider" && (
+          <div className="page-content">
+            <section className="panel" style={{ padding: 40, textAlign: "center" }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🛠</div>
+              <h2 style={{ fontSize: 15 }}>
+                {role === "partner" ? "Browsing requirements — coming in Stage 3" : "BBC requirement oversight — not part of the current build"}
+              </h2>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+                {role === "partner"
+                  ? "Requirements now exist on the platform (created by care providers). Property partners will be able to browse and submit against them once Stage 3 (property submission) is built."
+                  : "BBC does not review or approve requirements — they go live directly. There is no BBC action needed here."}
+              </p>
             </section>
           </div>
         )}
@@ -168,7 +255,7 @@ export default function Home() {
           </div>
         )}
 
-        {view !== "overview" && view !== "settings" && (
+        {view !== "overview" && view !== "settings" && view !== "requirements" && (
           <div className="page-content">
             <section className="panel" style={{ padding: 40, textAlign: "center" }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>🛠</div>
@@ -178,6 +265,28 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {reqModal === "form" && (
+        <div className="modal-backdrop" onMouseDown={closeReqModal}>
+          <div className="modal" style={{ width: "min(780px,100%)" }} onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-head"><h2>{editingReq ? `Edit ${editingReq.id}` : "New requirement"}</h2><button className="icon-button" onClick={closeReqModal}>×</button></div>
+            <RequirementForm initial={editingReq} onCancel={closeReqModal} onSubmit={saveRequirement} />
+          </div>
+        </div>
+      )}
+
+      {reqModal === "detail" && selectedReq && (
+        <RequirementDetail
+          requirement={requirements.find(r => r.id === selectedReq.id) || selectedReq}
+          onClose={() => setReqModal(null)}
+          onEdit={() => openEditRequirement(requirements.find(r => r.id === selectedReq.id) || selectedReq)}
+          onWithdraw={() => withdrawRequirement(selectedReq)}
+          onRePublish={() => rePublishRequirement(selectedReq)}
+          onDuplicate={() => duplicateAndOpen(requirements.find(r => r.id === selectedReq.id) || selectedReq)}
+        />
+      )}
+
+      {toast && <div className="toast"><span>✓</span>{toast}</div>}
     </div>
   );
 }
