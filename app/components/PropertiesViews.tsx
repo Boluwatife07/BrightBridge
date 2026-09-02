@@ -20,7 +20,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
   const visible = properties.filter(p => p.status !== "Withdrawn");
   const filtered = visible.filter(p =>
     filter === "action" ? p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained") :
-    filter === "accepted" ? ["Accepted", "Matched"].includes(p.status) :
+    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status) :
     filter === "declined" ? p.status === "Declined" : true);
 
   return (
@@ -33,7 +33,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
         <div className="filterbar">
           <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>All <b>{visible.length}</b></button>
           <button className={filter === "action" ? "selected" : ""} onClick={() => setFilter("action")}>Needs action <b>{visible.filter(p => p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained")).length}</b></button>
-          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched"].includes(p.status)).length}</b></button>
+          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed"].includes(p.status)).length}</b></button>
           <button className={filter === "declined" ? "selected" : ""} onClick={() => setFilter("declined")}>Declined <b>{visible.filter(p => p.status === "Declined").length}</b></button>
         </div>
       </section>
@@ -64,7 +64,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
 export function ProviderPropertiesList({ properties, requirements, onOpen }: {
   properties: PropertyRecord[]; requirements: RequirementRecord[]; onOpen: (p: PropertyRecord) => void;
 }) {
-  const matched = properties.filter(p => p.status === "Matched");
+  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed"].includes(p.status));
   const reqTitle = (id: string | null) => requirements.find(r => r.id === id)?.title;
 
   return (
@@ -95,7 +95,7 @@ export function ProviderPropertiesList({ properties, requirements, onOpen }: {
 --------------------------------------------------------------------------- */
 
 export function PropertyDetailModal({
-  role, property, requirements, isOwnProperty, onClose, onEdit, onDecide, onMatch, onPassOn, onRequestDoc,
+  role, property, requirements, isOwnProperty, onClose, onEdit, onDecide, onMatch, onPassOn, onRequestDoc, onRequestViewing,
 }: {
   role: "bbc" | "partner" | "provider";
   property: PropertyRecord;
@@ -107,12 +107,15 @@ export function PropertyDetailModal({
   onMatch?: (reqId: string) => void;
   onPassOn?: (reason: string) => void;
   onRequestDoc?: (label: string) => void;
+  onRequestViewing?: (message: string) => void;
   }) {
   const p = property;
   const [passingOn, setPassingOn] = useState(false);
   const [passReason, setPassReason] = useState("");
   const [requestingDoc, setRequestingDoc] = useState(false);
   const [docLabel, setDocLabel] = useState("");
+  const [requestingViewing, setRequestingViewing] = useState(false);
+  const [viewingMessage, setViewingMessage] = useState("");
 
   const canEditListing = role === "partner" && isOwnProperty && (p.status === "Draft" || p.status === "Declined");
 
@@ -225,9 +228,42 @@ export function PropertyDetailModal({
           )}
         </div>
 
-        {role === "provider" && p.status === "Matched" && !passingOn && (
+        {role === "provider" && p.status === "Matched" && !passingOn && !requestingViewing && (
           <div className="form-actions">
             <button className="secondary" style={{ color: "#c23b3b" }} onClick={() => setPassingOn(true)}>Not suitable</button>
+            <button className="primary" onClick={() => setRequestingViewing(true)}>Request a viewing</button>
+          </div>
+        )}
+        {role === "provider" && requestingViewing && (
+          <div className="modal-section">
+            <h3>Request a viewing</h3>
+            <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>This goes directly to the property source. They will offer you dates to choose from.</p>
+            <textarea value={viewingMessage} onChange={e => setViewingMessage(e.target.value)} placeholder="Optional message, e.g. who will be attending"
+              style={{ width: "100%", minHeight: 70, border: "1px solid var(--line)", borderRadius: 9, padding: 12, fontSize: 12, fontFamily: "inherit" }} />
+            <div className="form-actions">
+              <button className="secondary" onClick={() => { setRequestingViewing(false); setViewingMessage(""); }}>Cancel</button>
+              <button className="primary" onClick={() => { onRequestViewing?.(viewingMessage.trim()); setRequestingViewing(false); setViewingMessage(""); }}>Send request</button>
+            </div>
+          </div>
+        )}
+        {role === "provider" && p.status === "Viewing requested" && (
+          <div className="modal-section" style={{ padding: "12px 24px" }}>
+            <p style={{ fontSize: 12, color: "var(--muted)" }}>Viewing requested. Check the Viewings tab once the property source offers dates.</p>
+          </div>
+        )}
+        {role === "provider" && p.status === "Viewing confirmed" && (
+          <div className="modal-section" style={{ padding: "12px 24px" }}>
+            <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>Viewing confirmed. Check the Viewings tab for the date.</p>
+          </div>
+        )}
+        {role === "partner" && p.status === "Viewing requested" && (
+          <div className="modal-section" style={{ padding: "12px 24px" }}>
+            <p style={{ fontSize: 12, color: "var(--muted)" }}>A care provider wants to view this property. Offer some dates from the Viewings tab.</p>
+          </div>
+        )}
+        {role === "partner" && p.status === "Viewing confirmed" && (
+          <div className="modal-section" style={{ padding: "12px 24px" }}>
+            <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>Viewing confirmed. Check the Viewings tab for the date.</p>
           </div>
         )}
         {role === "provider" && passingOn && (

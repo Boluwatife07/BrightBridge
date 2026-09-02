@@ -7,10 +7,12 @@ import { RequirementsList, RequirementDetail } from "./components/Requirements";
 import { PropertySubmissionForm, PropertyFields } from "./components/PropertySubmissionForm";
 import { PropertyReviewQueue } from "./components/PropertyReview";
 import { PartnerPropertiesList, ProviderPropertiesList, PropertyDetailModal } from "./components/PropertiesViews";
-import { ProviderAccount, PartnerAccount, Role, RequirementRecord, PropertyRecord, DocItem, DocState } from "./lib/types";
+import { ViewingsList } from "./components/Viewings";
+import { ProviderAccount, PartnerAccount, Role, RequirementRecord, PropertyRecord, DocItem, DocState, ViewingRecord } from "./lib/types";
 import { seedProviderAccount, seedLandlordAccount, seedIntroducerAccount } from "./lib/seed";
 import { seedRequirements, blankRequirement, duplicateRequirement } from "./lib/requirementSeed";
 import { seedProperties, blankProperty } from "./lib/propertySeed";
+import { seedViewings, blankViewingRequest } from "./lib/viewingSeed";
 
 type Screen = "landing" | "onboardProvider" | "onboardPartner" | "app";
 type View = "overview" | "requirements" | "properties" | "viewings" | "activity" | "settings";
@@ -26,7 +28,7 @@ const NAV: { id: View; label: string; icon: string; builtInStage: number }[] = [
   { id: "settings", label: "Settings", icon: "⚙", builtInStage: 1 },
 ];
 
-const CURRENT_STAGE = 3;
+const CURRENT_STAGE = 4;
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
@@ -46,6 +48,8 @@ export default function Home() {
   const [selectedProp, setSelectedProp] = useState<PropertyRecord | null>(null);
   const [editingProp, setEditingProp] = useState<PropertyRecord | null>(null);
   const [submitForReqId, setSubmitForReqId] = useState<string | null>(null);
+
+  const [viewings, setViewings] = useState<ViewingRecord[]>(seedViewings);
 
   const [toast, setToast] = useState("");
 
@@ -207,6 +211,40 @@ export default function Home() {
     notify("Sent to BrightBridge, we will chase the property source");
   }
 
+  /* ---------------- viewings (Care Provider PRD, Phase 4) ---------------- */
+  function requestViewing(p: PropertyRecord, message: string) {
+    const v = blankViewingRequest(p.id, p.name, p.matchedReqId, message);
+    setViewings(prev => [v, ...prev]);
+    setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: "Viewing requested" } : x));
+    notify("Viewing request sent directly to the property source");
+    setPropModal(null);
+  }
+
+  function offerDates(v: ViewingRecord, dates: string[]) {
+    setViewings(prev => prev.map(x => x.id === v.id ? { ...x, offeredDates: dates, status: "Dates offered" } : x));
+    notify("Dates sent to the care provider");
+  }
+
+  function pickDate(v: ViewingRecord, date: string) {
+    setViewings(prev => prev.map(x => x.id === v.id ? { ...x, confirmedDate: date, status: "Confirmed" } : x));
+    setProperties(prev => prev.map(p => p.id === v.propertyId ? { ...p, status: "Viewing confirmed" } : p));
+    notify("Date confirmed with the property source");
+  }
+
+  function declineDates(v: ViewingRecord, note: string) {
+    setViewings(prev => prev.map(x => x.id === v.id ? {
+      ...x, status: "Reschedule needed",
+      declineNote: note || "None of those dates work.",
+    } : x));
+    notify("Sent to the property source, none of the dates worked");
+  }
+
+  function cancelViewing(v: ViewingRecord, reason: string) {
+    setViewings(prev => prev.map(x => x.id === v.id ? { ...x, status: "Cancelled", cancelledBy: role === "provider" ? "provider" : "partner", cancelReason: reason } : x));
+    setProperties(prev => prev.map(p => p.id === v.propertyId ? { ...p, status: "Matched" } : p));
+    notify("Viewing cancelled");
+  }
+
   /* ---------------- landing ---------------- */
   if (screen === "landing") {
     return (
@@ -305,9 +343,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 3 is built: matched properties now appear in your Properties tab and inside each requirement&apos;s detail. Next: Stage 4 builds the viewing flow.</>}
-                {role === "partner" && <>Stage 3 is built: submit a property (with the ownership question, planning and permissions checks, and document upload) from the Properties tab, and track its status through BBC review. Next: Stage 4 builds the viewing flow.</>}
-                {role === "bbc" && <>Stage 3 is built: review submitted properties, accept or decline with a reason, and match accepted properties to a live requirement from the Properties tab. Next: Stage 4 builds the viewing flow.</>}
+                {role === "provider" && <>Stage 4 is built: request a viewing on a matched property, pick from the dates the property source offers, or decline and ask for a reschedule. Next: viewing outcome and the schedule of works.</>}
+                {role === "partner" && <>Stage 4 is built: offer dates when a care provider requests a viewing, and cancel a confirmed viewing if needed, from the Viewings tab. Next: viewing outcome and the schedule of works.</>}
+                {role === "bbc" && <>Stage 4 is built: viewing dates are agreed directly between the care provider and property source. You can see every viewing in the Viewings tab, but there is nothing for you to action. Next: viewing outcome and the schedule of works.</>}
               </div>
             </section>
           </div>
@@ -360,6 +398,22 @@ export default function Home() {
           />
         )}
 
+        {view === "viewings" && (
+          <ViewingsList
+            role={role === "bbc" ? "bbc" : role === "partner" ? "partner" : "provider"}
+            viewings={viewings.filter(v => {
+              if (role === "bbc") return true;
+              if (role === "partner") return properties.some(p => p.id === v.propertyId && p.partnerAccountId === currentPartnerId);
+              // provider: viewings tied to a requirement they own
+              return v.reqId ? requirements.find(r => r.id === v.reqId)?.operatorAccountId === providerAccount.id : false;
+            })}
+            onPickDate={pickDate}
+            onDeclineDates={declineDates}
+            onOfferDates={offerDates}
+            onCancel={cancelViewing}
+          />
+        )}
+
         {view === "settings" && (
           <div className="page-content">
             <section className="panel" style={{ padding: 26 }}>
@@ -369,7 +423,7 @@ export default function Home() {
           </div>
         )}
 
-        {view !== "overview" && view !== "settings" && view !== "requirements" && view !== "properties" && (
+        {view !== "overview" && view !== "settings" && view !== "requirements" && view !== "properties" && view !== "viewings" && (
           <div className="page-content">
             <section className="panel" style={{ padding: 40, textAlign: "center" }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>🛠</div>
@@ -436,6 +490,7 @@ export default function Home() {
             onMatch={(reqId) => matchProperty(current, reqId)}
             onPassOn={(reason) => passOnProperty(current, reason)}
             onRequestDoc={(label) => requestExtraDoc(current, label)}
+            onRequestViewing={(message) => requestViewing(current, message)}
           />
         );
       })()}
