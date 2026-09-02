@@ -8,6 +8,7 @@ import { ViewingOutcomeStep, WorksListReadOnly } from "./ViewingOutcome";
 import { OfferStep } from "./Offer";
 import { HeadsOfTermsStep, HoTDraftFields } from "./HeadsOfTerms";
 import { WorksChecklist, SignOffStep } from "./Works";
+import { ComplianceStep } from "./Compliance";
 
 function Status({ tone, children }: { tone: "green" | "amber" | "grey" | "red"; children: React.ReactNode }) {
   return <span className={`status ${tone}`}>{children}</span>;
@@ -24,7 +25,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
   const visible = properties.filter(p => p.status !== "Withdrawn");
   const filtered = visible.filter(p =>
     filter === "action" ? p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained") :
-    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review"].includes(p.status) :
+    filter === "accepted" ? ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status) :
     filter === "declined" ? p.status === "Declined" : true);
 
   return (
@@ -37,7 +38,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
         <div className="filterbar">
           <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>All <b>{visible.length}</b></button>
           <button className={filter === "action" ? "selected" : ""} onClick={() => setFilter("action")}>Needs action <b>{visible.filter(p => p.status === "Submitted" || p.documents.some(d => d.state === "Being obtained")).length}</b></button>
-          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review"].includes(p.status)).length}</b></button>
+          <button className={filter === "accepted" ? "selected" : ""} onClick={() => setFilter("accepted")}>Accepted <b>{visible.filter(p => ["Accepted", "Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status)).length}</b></button>
           <button className={filter === "declined" ? "selected" : ""} onClick={() => setFilter("declined")}>Declined <b>{visible.filter(p => p.status === "Declined").length}</b></button>
         </div>
       </section>
@@ -68,7 +69,7 @@ export function PartnerPropertiesList({ properties, onOpen, onCreate }: {
 export function ProviderPropertiesList({ properties, requirements, onOpen }: {
   properties: PropertyRecord[]; requirements: RequirementRecord[]; onOpen: (p: PropertyRecord) => void;
 }) {
-  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review"].includes(p.status));
+  const matched = properties.filter(p => ["Matched", "Viewing requested", "Viewing confirmed", "Offer", "Heads of terms", "Works", "Compliance review", "Lease"].includes(p.status));
   const reqTitle = (id: string | null) => requirements.find(r => r.id === id)?.title;
 
   return (
@@ -104,6 +105,7 @@ export function PropertyDetailModal({
   onSubmitOffer, onAcceptOffer, onCounterOffer, onRejectOffer, onWithdrawOffer,
   providerName, partnerName, onPublishHoT, onAcceptHoT, onCounterHoT,
   onMarkWorkItemComplete, signOffStatus, onRequestSignOff, onApproveSignOff, onRaiseSnagging,
+  onMarkDocOnFile, onReleaseAllDocs, onFlagDocIssue, onConfirmCompliance,
 }: {
   role: "bbc" | "partner" | "provider";
   property: PropertyRecord;
@@ -140,6 +142,10 @@ export function PropertyDetailModal({
   onRequestSignOff?: () => void;
   onApproveSignOff?: () => void;
   onRaiseSnagging?: (items: WorksItem[]) => void;
+  onMarkDocOnFile?: (docId: string) => void;
+  onReleaseAllDocs?: () => void;
+  onFlagDocIssue?: (docId: string, message: string) => void;
+  onConfirmCompliance?: () => void;
   }) {
   const p = property;
   const providerLabel = providerName || "Care provider";
@@ -339,15 +345,24 @@ export function PropertyDetailModal({
             )}
           </>
         )}
-        {p.status === "Compliance review" && (
+        {p.status === "Compliance review" && onMarkDocOnFile && onReleaseAllDocs && onFlagDocIssue && onConfirmCompliance && (
+          <ComplianceStep
+            role={role}
+            documents={p.documents}
+            onMarkOnFile={onMarkDocOnFile}
+            onReleaseAll={onReleaseAllDocs}
+            onFlagIssue={onFlagDocIssue}
+            onConfirm={onConfirmCompliance}
+          />
+        )}
+        {p.status === "Lease" && (
           <div className="modal-section" style={{ padding: "12px 24px" }}>
             <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
-              {p.worksItems.length === 0 ? "No works were needed. " : "All works signed off. "}
-              Compliance document review is built in the next stage.
+              Compliance confirmed. Lease and completion is built in the next stage.
             </p>
           </div>
         )}
-        {(role === "bbc" || role === "partner") && p.status !== "Heads of terms" && p.status !== "Works" && <WorksListReadOnly items={p.worksItems} />}
+        {(role === "bbc" || role === "partner") && p.status !== "Heads of terms" && p.status !== "Works" && p.status !== "Compliance review" && <WorksListReadOnly items={p.worksItems} />}
 
         {role === "provider" && passingOn && (
           <div className="modal-section">

@@ -120,6 +120,9 @@ export type DocItem = {
   state: DocState;
   issueDate?: string;
   expiryDate?: string;
+  /** Set by the care provider during compliance review if this document has
+   *  a problem (e.g. expired). Cleared once the partner re-uploads. */
+  flaggedIssue?: string;
 };
 
 export const STANDARD_DOCS = [

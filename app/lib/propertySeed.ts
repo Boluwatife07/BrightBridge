@@ -219,6 +219,42 @@ export const seedProperties: PropertyRecord[] = [
     fees: blankFees(),
     createdOn: "10 Aug 2026",
   },
+  {
+    id: "PROP-255", partnerAccountId: "ACC-L-201", ownership: { kind: "landlord" },
+    name: "Corner plot, Meir", area: "Stoke-on-Trent, ST3", propertyType: "Larger format (7+ bed)",
+    bedrooms: 7, bathrooms: 3, condition: "Furnished", rent: "£4,000 pcm", leaseOffer: "5 years",
+    availableFrom: "Immediate", description: "Works signed off, now finalising compliance paperwork before the lease.",
+    images: [],
+    hasMortgage: "No", lenderConsented: "Not applicable", isLeasehold: "No", superiorLeaseAllowsSubletting: "Not applicable",
+    planningUseClass: "C3(b)", hasHmoLicence: "Yes", article4OrLicensingAware: "No",
+    status: "Compliance review", declineReason: "", matchedReqId: "REQ-1044",
+    documents: [
+      { id: "DOC-C1", label: "Gas safety certificate (CP12)", standard: true, askedForBy: "", state: "Released" },
+      { id: "DOC-C2", label: "EICR (electrical installation)", standard: true, askedForBy: "", state: "Released" },
+      { id: "DOC-C3", label: "EPC (energy performance)", standard: true, askedForBy: "", state: "On file" },
+      { id: "DOC-C4", label: "Fire risk assessment", standard: true, askedForBy: "", state: "On file" },
+      { id: "DOC-C5", label: "Fire alarm installation certificate", standard: true, askedForBy: "", state: "Being obtained" },
+      { id: "DOC-C6", label: "HMO licence (where applicable)", standard: true, askedForBy: "", state: "Released" },
+      { id: "DOC-C7", label: "Legionella risk assessment", standard: true, askedForBy: "", state: "On file" },
+      { id: "DOC-C8", label: "Floor plan with room dimensions", standard: true, askedForBy: "", state: "Released" },
+    ],
+    passedOn: [],
+    dealStage: "Compliance review", viewingOutcomeNote: "Confirmed they want to proceed, no works needed.",
+    worksItems: [],
+    offers: [
+      { id: "OFFER-4", round: 1, actor: "provider", rent: "£4,000 pcm", leaseLength: "5 years", message: "", status: "Accepted", timestamp: "12 Aug 2026, 10:00" },
+    ],
+    headsOfTerms: {
+      rent: "£4,000 pcm", leaseLength: "5 years",
+      breakClause: "Mutual break at year 5", rentReview: "RPI-linked, reviewed every 3 years",
+      repairsLandlord: "Structure and exterior", repairsTenant: "Internal decoration and fixtures",
+      alterations: "", worksSummary: "", deposit: "1 month", rentFreePeriod: "",
+      permittedUse: "Supported accommodation", sublettingRights: "Provider may grant occupation to residents",
+      status: "Agreed", counterNote: "", counteredBy: null, publishedOn: "15 Aug 2026",
+    },
+    fees: blankFees(),
+    createdOn: "5 Aug 2026",
+  },
 ];
 
 /* ---------------------------------------------------------------------------

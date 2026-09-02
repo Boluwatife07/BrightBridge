@@ -431,6 +431,41 @@ export default function Home() {
     notify("Snagging list sent to the property source");
   }
 
+  /* ---------------- compliance document review (Care Provider PRD, Phase 9) ---------------- */
+  function markDocOnFile(p: PropertyRecord, docId: string) {
+    const apply = (x: PropertyRecord) => x.id === p.id
+      ? { ...x, documents: x.documents.map(d => d.id === docId ? { ...d, state: "On file" as const, flaggedIssue: "" } : d) }
+      : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Marked as uploaded");
+  }
+
+  function releaseAllDocs(p: PropertyRecord) {
+    const apply = (x: PropertyRecord) => x.id === p.id
+      ? { ...x, documents: x.documents.map(d => d.state === "On file" ? { ...d, state: "Released" as const } : d) }
+      : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Documents released to the care provider");
+  }
+
+  function flagDocIssue(p: PropertyRecord, docId: string, message: string) {
+    const apply = (x: PropertyRecord) => x.id === p.id
+      ? { ...x, documents: x.documents.map(d => d.id === docId ? { ...d, state: "Being obtained" as const, flaggedIssue: message } : d) }
+      : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Issue flagged, BrightBridge will chase the property source");
+  }
+
+  function confirmCompliance(p: PropertyRecord) {
+    const apply = (x: PropertyRecord) => x.id === p.id ? { ...x, status: "Lease" as const, dealStage: "Lease" as const } : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify("Compliance confirmed, moving to lease");
+  }
+
   /* ---------------- landing ---------------- */
   if (screen === "landing") {
     return (
@@ -529,9 +564,9 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 8 is built: once all works are marked complete, request a sign-off visit, then sign off or raise snagging from the property detail. The seeded Bilston property has two of three items already complete, ready to try. If no works were needed, this whole phase is skipped automatically. Next: compliance document review.</>}
-                {role === "partner" && <>Stage 8 is built: BrightBridge marks each works item complete as you finish it, and once all are done the care provider will request a sign-off visit through the Viewings tab, same as the original viewing. Next: compliance document review.</>}
-                {role === "bbc" && <>Stage 8 is built: mark works items complete as the property source confirms them. You are the only one who can, since you are verifying with whoever did the work. Next: compliance document review.</>}
+                {role === "provider" && <>Stage 9 is built: review compliance documents once BrightBridge releases them, flag any issue with a specific document, and confirm when you're satisfied. The seeded Meir property already has most documents released, one still outstanding, ready to try. Next: lease and completion.</>}
+                {role === "partner" && <>Stage 9 is built: mark any outstanding required document as uploaded once you have it, and BrightBridge will release it to the care provider. Next: lease and completion.</>}
+                {role === "bbc" && <>Stage 9 is built: release documents to the care provider once the property source has them on file. Next: lease and completion.</>}
               </div>
             </section>
           </div>
@@ -700,6 +735,10 @@ export default function Home() {
             onRequestSignOff={() => requestSignOffVisit(current)}
             onApproveSignOff={() => approveSignOff(current)}
             onRaiseSnagging={(items) => raiseSnagging(current, items)}
+            onMarkDocOnFile={(docId) => markDocOnFile(current, docId)}
+            onReleaseAllDocs={() => releaseAllDocs(current)}
+            onFlagDocIssue={(docId, message) => flagDocIssue(current, docId, message)}
+            onConfirmCompliance={() => confirmCompliance(current)}
           />
         );
       })()}
