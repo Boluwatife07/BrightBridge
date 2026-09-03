@@ -36,8 +36,10 @@ export default function Home() {
   const [view, setView] = useState<View>("overview");
   const [role, setRole] = useState<Role>("bbc");
   const [providerAccount, setProviderAccount] = useState<ProviderAccount>(seedProviderAccount);
-  const [partnerAccount, setPartnerAccount] = useState<PartnerAccount>(seedLandlordAccount);
-  const [partnerVariant, setPartnerVariant] = useState<"landlord" | "introducer">("landlord");
+  const [allPartnerAccounts, setAllPartnerAccounts] = useState<PartnerAccount[]>([seedLandlordAccount, seedIntroducerAccount]);
+  const [activePartnerAccountId, setActivePartnerAccountId] = useState<string>(seedLandlordAccount.id);
+  const partnerAccount = allPartnerAccounts.find(a => a.id === activePartnerAccountId) || allPartnerAccounts[0];
+  const partnerVariant: "landlord" | "introducer" = partnerAccount.invitedByIntroducerId || partnerAccount.id === seedLandlordAccount.id ? "landlord" : "introducer";
 
   const [requirements, setRequirements] = useState<RequirementRecord[]>(seedRequirements);
   const [reqModal, setReqModal] = useState<ReqModal>(null);
@@ -68,7 +70,8 @@ export default function Home() {
   }
 
   function onPartnerRegistered(account: PartnerAccount) {
-    setPartnerAccount(account);
+    setAllPartnerAccounts(prev => [...prev, account]);
+    setActivePartnerAccountId(account.id);
     enterAppAs("partner");
   }
 
@@ -78,9 +81,14 @@ export default function Home() {
   }
 
   function switchDemoRole() {
-    if (role === "bbc") { setPartnerVariant("landlord"); setPartnerAccount(seedLandlordAccount); enterAppAs("provider"); }
-    else if (role === "provider") { setPartnerVariant("landlord"); setPartnerAccount(seedLandlordAccount); enterAppAs("partner"); }
-    else if (role === "partner" && partnerVariant === "landlord") { setPartnerVariant("introducer"); setPartnerAccount(seedIntroducerAccount); enterAppAs("partner"); }
+    if (role === "bbc") { setActivePartnerAccountId(seedLandlordAccount.id); enterAppAs("provider"); }
+    else if (role === "provider") { setActivePartnerAccountId(allPartnerAccounts[0].id); enterAppAs("partner"); }
+    else if (role === "partner") {
+      const idx = allPartnerAccounts.findIndex(a => a.id === activePartnerAccountId);
+      const next = allPartnerAccounts[idx + 1];
+      if (next) { setActivePartnerAccountId(next.id); enterAppAs("partner"); }
+      else enterAppAs("bbc");
+    }
     else enterAppAs("bbc");
   }
 
@@ -136,6 +144,23 @@ export default function Home() {
   /* ---------------- properties (Property Partner PRD, Phase 3-4) ---------------- */
   const currentPartnerId = partnerAccount.id;
   const isOwner = partnerVariant === "landlord";
+
+  /** True if `accountId` should see this property at all — either they
+   *  submitted it (the introducer, forever, for fee tracking) or they are
+   *  the landlord who was invited onto it. */
+  function isPartnerVisibleTo(p: PropertyRecord, accountId: string): boolean {
+    if (p.partnerAccountId === accountId) return true;
+    return p.ownership.kind === "introducer" && p.ownership.landlordAccountId === accountId;
+  }
+  /** True if `accountId` is the party who can actually ACT on this property
+   *  right now — once a landlord has been invited, the introducer can only
+   *  watch, per Property Partner PRD 3.4. */
+  function isPartnerActiveOn(p: PropertyRecord, accountId: string): boolean {
+    if (p.ownership.kind === "introducer" && p.ownership.landlordAccountId) {
+      return p.ownership.landlordAccountId === accountId;
+    }
+    return p.partnerAccountId === accountId;
+  }
 
   function openSubmitProperty(forReqId: string | null = null) {
     setEditingProp(null);
@@ -210,6 +235,23 @@ export default function Home() {
     setProperties(prev => prev.map(apply));
     setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
     notify("Sent to BrightBridge, we will chase the property source");
+  }
+
+  /* ---------------- landlord onboarding for introducers (Property Partner PRD 3.4-3.6) ---------------- */
+  function inviteLandlord(p: PropertyRecord, name: string, email: string, phone: string) {
+    const landlord: PartnerAccount = {
+      id: nextId("ACC-PP"), kind: "partner",
+      fullName: name, email, phone, companyName: "",
+      coverageAreas: [], propertyTypes: [],
+      invitedByIntroducerId: p.partnerAccountId,
+    };
+    setAllPartnerAccounts(prev => [...prev, landlord]);
+    const apply = (x: PropertyRecord) => x.id === p.id && x.ownership.kind === "introducer"
+      ? { ...x, ownership: { kind: "introducer" as const, landlordAccountId: landlord.id } }
+      : x;
+    setProperties(prev => prev.map(apply));
+    setSelectedProp(prev => prev && prev.id === p.id ? apply(prev) : prev);
+    notify(`${name} invited. They are now the active party on this property.`);
   }
 
   /* ---------------- viewings (Care Provider PRD, Phase 4) ---------------- */
@@ -328,10 +370,9 @@ export default function Home() {
      provider can view a property owned by either seeded partner account,
      and showing the wrong name here would defeat the point of this stage. */
   function resolvePartnerName(p: PropertyRecord): string {
-    if (p.partnerAccountId === seedLandlordAccount.id) return seedLandlordAccount.fullName;
-    if (p.partnerAccountId === seedIntroducerAccount.id) return seedIntroducerAccount.companyName || seedIntroducerAccount.fullName;
-    if (p.partnerAccountId === partnerAccount.id) return partnerAccount.companyName || partnerAccount.fullName;
-    return "Property source";
+    const activeId = p.ownership.kind === "introducer" && p.ownership.landlordAccountId ? p.ownership.landlordAccountId : p.partnerAccountId;
+    const acc = allPartnerAccounts.find(a => a.id === activeId);
+    return acc ? (acc.companyName || acc.fullName) : "Property source";
   }
   function resolveProviderName(p: PropertyRecord): string {
     const req = requirements.find(r => r.id === p.matchedReqId);
@@ -521,7 +562,7 @@ export default function Home() {
   /* ---------------- app shell ---------------- */
   const myName = role === "bbc" ? "BrightBridge" : role === "provider" ? providerAccount.organisationName : (partnerAccount.companyName || partnerAccount.fullName);
   const initials = (myName || "?").split(" ").filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase();
-  const roleName = role === "bbc" ? "BrightBridge workspace" : role === "provider" ? "Care provider portal" : partnerVariant === "introducer" ? "Property partner portal (introducer)" : "Property partner portal (landlord)";
+  const roleName = role === "bbc" ? "BrightBridge workspace" : role === "provider" ? "Care provider portal" : partnerAccount.invitedByIntroducerId ? "Property partner portal (invited landlord)" : partnerVariant === "introducer" ? "Property partner portal (introducer)" : "Property partner portal (landlord)";
   const heading = view === "overview" ? `Welcome, ${myName || "there"}` : NAV.find(n => n.id === view)?.label;
 
   return (
@@ -580,8 +621,12 @@ export default function Home() {
                   <div><small>Phone</small><strong>{partnerAccount.phone}</strong></div>
                   <div><small>Coverage areas</small><strong>{partnerAccount.coverageAreas.join(", ") || "—"}</strong></div>
                   <div><small>Property types</small><strong>{partnerAccount.propertyTypes.join(", ") || "—"}</strong></div>
-                  <div><small>Demo variant</small><strong style={{ textTransform: "capitalize" }}>{partnerVariant}</strong>
-                    <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>{partnerVariant === "introducer" ? "This account submits properties it does not own (Kush's path)." : "This account owns the properties it submits."}</p>
+                  <div><small>Demo variant</small><strong style={{ textTransform: "capitalize" }}>{partnerAccount.invitedByIntroducerId ? "Invited landlord" : partnerVariant}</strong>
+                    <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+                      {partnerAccount.invitedByIntroducerId
+                        ? "Invited onto the platform by an introducer partway through a deal. Now the active party on that property."
+                        : partnerVariant === "introducer" ? "This account submits properties it does not own (Kush's path)." : "This account owns the properties it submits."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -591,9 +636,13 @@ export default function Home() {
               )}
 
               <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: 10, background: "var(--purple-soft)", fontSize: 12, color: "var(--ink)", lineHeight: 1.6 }}>
-                {role === "provider" && <>Stage 10 is built: this is the final stage. Once BBC marks the lease signed, the property is complete and every document is available to you. The seeded Wednesfield property already has solicitors instructed, ready to try marking it signed from BBC.</>}
-                {role === "partner" && <>Stage 10 is built: once BBC marks the lease signed, you&apos;ll see your fees here — placement and ongoing rental for a landlord, or the introduction fee if you introduced the property. This is the last stage of the deal.</>}
-                {role === "bbc" && <>Stage 10 is built, completing the full deal lifecycle: instruct solicitors once compliance is confirmed, then mark the lease signed when you hear back. There is no e-signing integration — BBC is never a party to the lease, so solicitors handle drafting and signing entirely outside the platform.</>}
+                {role === "provider" && <>Landlord onboarding is built: when a property was introduced rather than owned directly, heads of terms can&apos;t be drafted until the introducer brings the landlord onto the platform. You won&apos;t notice a difference either way — the deal still moves at the same pace.</>}
+                {role === "partner" && (partnerAccount.invitedByIntroducerId
+                  ? <>You joined this platform because an introducer brought you in partway through a deal. From here you&apos;re the active party — respond to heads of terms, manage works, and see it through to completion, exactly like a landlord who registered directly.</>
+                  : partnerVariant === "introducer"
+                    ? <>Landlord onboarding is built: once your offer is accepted, invite your landlord onto the platform before BrightBridge can prepare heads of terms — they need to review and agree to the terms directly, not through you. The seeded Longton property is ready to try this on right now. After they join, you become a read-only observer and your introduction fee is still tracked automatically.</>
+                    : <>Landlord onboarding is built for introducer-submitted properties — nothing changes for properties you own and submit directly.</>)}
+                {role === "bbc" && <>Landlord onboarding is built: for introducer-submitted properties, heads of terms can&apos;t be drafted until the landlord has joined the platform directly. Once they do, the introducer becomes read-only and the landlord takes over as the active party for the rest of the deal.</>}
               </div>
             </section>
           </div>
@@ -629,7 +678,7 @@ export default function Home() {
 
         {view === "properties" && role === "partner" && (
           <PartnerPropertiesList
-            properties={properties.filter(p => p.partnerAccountId === currentPartnerId)}
+            properties={properties.filter(p => isPartnerVisibleTo(p, currentPartnerId))}
             onOpen={openPropertyDetail}
             onCreate={() => openSubmitProperty(null)}
           />
@@ -651,7 +700,7 @@ export default function Home() {
             role={role === "bbc" ? "bbc" : role === "partner" ? "partner" : "provider"}
             viewings={viewings.filter(v => {
               if (role === "bbc") return true;
-              if (role === "partner") return properties.some(p => p.id === v.propertyId && p.partnerAccountId === currentPartnerId);
+              if (role === "partner") return properties.some(p => p.id === v.propertyId && isPartnerVisibleTo(p, currentPartnerId));
               // provider: viewings tied to a requirement they own
               return v.reqId ? requirements.find(r => r.id === v.reqId)?.operatorAccountId === providerAccount.id : false;
             })}
@@ -726,12 +775,14 @@ export default function Home() {
       {propModal === "detail" && selectedProp && (() => {
         const current = properties.find(p => p.id === selectedProp.id) || selectedProp;
         const isOwnProperty = role === "partner" && current.partnerAccountId === currentPartnerId;
+        const partnerReadOnly = role === "partner" && !isPartnerActiveOn(current, currentPartnerId);
         return (
           <PropertyDetailModal
             role={role === "bbc" ? "bbc" : role === "partner" ? "partner" : "provider"}
             property={current}
             requirements={requirements}
             isOwnProperty={isOwnProperty}
+            partnerReadOnly={partnerReadOnly}
             onClose={() => setPropModal(null)}
             onEdit={() => openEditProperty(current)}
             onDecide={(decision, reason) => decideProperty(current, decision, reason)}
@@ -768,6 +819,8 @@ export default function Home() {
             onConfirmCompliance={() => confirmCompliance(current)}
             onInstructSolicitors={() => instructSolicitors(current)}
             onMarkLeaseSigned={() => markLeaseSigned(current)}
+            isIntroducerHere={role === "partner" && current.partnerAccountId === currentPartnerId && current.ownership.kind === "introducer" && !current.ownership.landlordAccountId}
+            onInviteLandlord={(name, email, phone) => inviteLandlord(current, name, email, phone)}
           />
         );
       })()}

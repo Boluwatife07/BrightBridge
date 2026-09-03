@@ -283,6 +283,26 @@ export const seedProperties: PropertyRecord[] = [
     fees: blankFees(),
     createdOn: "1 Aug 2026",
   },
+  {
+    id: "PROP-265", partnerAccountId: "ACC-I-202", ownership: { kind: "introducer", landlordAccountId: null },
+    name: "Semi-detached, Longton", area: "Stoke-on-Trent, ST3", propertyType: "Larger format (7+ bed)",
+    bedrooms: 7, bathrooms: 3, condition: "Furnished", rent: "£3,950 pcm", leaseOffer: "5 years",
+    availableFrom: "Immediate", description: "Introduced by Open Block Investments. Offer agreed, waiting for the landlord to join before heads of terms can be drafted.",
+    images: [],
+    hasMortgage: "Not sure", lenderConsented: "Not sure", isLeasehold: "Not sure", superiorLeaseAllowsSubletting: "Not sure",
+    planningUseClass: "", hasHmoLicence: "Not sure", article4OrLicensingAware: "Not sure",
+    status: "Heads of terms", declineReason: "", matchedReqId: "REQ-1044",
+    documents: standardDocs([true, true, false, true, false, false, false, false]),
+    passedOn: [],
+    dealStage: "Heads of terms", viewingOutcomeNote: "Confirmed they want to proceed, no works needed.",
+    worksItems: [],
+    offers: [
+      { id: "OFFER-6", round: 1, actor: "provider", rent: "£3,950 pcm", leaseLength: "5 years", message: "", status: "Accepted", timestamp: "22 Aug 2026, 13:20" },
+    ],
+    headsOfTerms: null,
+    fees: blankFees(),
+    createdOn: "6 Aug 2026",
+  },
 ];
 
 /* ---------------------------------------------------------------------------

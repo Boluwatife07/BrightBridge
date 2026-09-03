@@ -10,7 +10,7 @@ function Status({ tone, children }: { tone: "green" | "amber" | "grey" | "red"; 
 const isRequired = (label: string) => (REQUIRED_DOCS as readonly string[]).includes(label);
 
 export function ComplianceStep({
-  role, documents, onMarkOnFile, onReleaseAll, onFlagIssue, onConfirm,
+  role, documents, onMarkOnFile, onReleaseAll, onFlagIssue, onConfirm, readOnly,
 }: {
   role: "bbc" | "provider" | "partner";
   documents: DocItem[];
@@ -18,6 +18,7 @@ export function ComplianceStep({
   onReleaseAll: () => void;
   onFlagIssue: (docId: string, message: string) => void;
   onConfirm: () => void;
+  readOnly?: boolean;
 }) {
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const [flagText, setFlagText] = useState("");
@@ -56,8 +57,11 @@ export function ComplianceStep({
             </p>
           )}
 
-          {role === "partner" && d.state !== "On file" && d.state !== "Released" && (
+          {role === "partner" && !readOnly && d.state !== "On file" && d.state !== "Released" && (
             <button className="secondary" style={{ fontSize: 10, padding: "5px 9px", marginTop: 6 }} onClick={() => onMarkOnFile(d.id)}>Mark as uploaded</button>
+          )}
+          {role === "partner" && readOnly && d.state !== "On file" && d.state !== "Released" && (
+            <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>The landlord needs to upload this.</p>
           )}
 
           {role === "provider" && d.state === "Released" && flaggingId !== d.id && (

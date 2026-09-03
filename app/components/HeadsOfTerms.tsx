@@ -117,7 +117,7 @@ function HoTDocument({ hot, providerName, partnerName }: { hot: HeadsOfTerms; pr
 --------------------------------------------------------------------------- */
 
 export function HeadsOfTermsStep({
-  role, hot, rent, leaseLength, worksSummary, providerName, partnerName, onPublish, onAccept, onCounter,
+  role, hot, rent, leaseLength, worksSummary, providerName, partnerName, onPublish, onAccept, onCounter, readOnly,
 }: {
   role: "bbc" | "provider" | "partner";
   hot: HeadsOfTerms | null;
@@ -126,6 +126,7 @@ export function HeadsOfTermsStep({
   onPublish: (fields: HoTDraftFields) => void;
   onAccept: () => void;
   onCounter: (note: string) => void;
+  readOnly?: boolean;
 }) {
   const [countering, setCountering] = useState(false);
   const [note, setNote] = useState("");
@@ -161,11 +162,14 @@ export function HeadsOfTermsStep({
         </div>
       )}
 
-      {(hot.status === "Published" || hot.status === "Countered") && myTurn && !countering && (
+      {(hot.status === "Published" || hot.status === "Countered") && myTurn && !readOnly && !countering && (
         <div className="form-actions" style={{ padding: 0, borderTop: "none" }}>
           <button className="secondary" onClick={() => setCountering(true)}>Counter</button>
           <button className="primary" onClick={onAccept}>Accept</button>
         </div>
+      )}
+      {(hot.status === "Published" || hot.status === "Countered") && myTurn && readOnly && (
+        <p style={{ fontSize: 12, color: "var(--muted)" }}>The landlord needs to respond to this.</p>
       )}
 
       {(hot.status === "Published" || hot.status === "Countered") && !myTurn && role !== "bbc" && (

@@ -10,6 +10,7 @@ import { HeadsOfTermsStep, HoTDraftFields } from "./HeadsOfTerms";
 import { WorksChecklist, SignOffStep } from "./Works";
 import { ComplianceStep } from "./Compliance";
 import { LeaseStep, CompletionSummary } from "./Lease";
+import { InviteLandlordPanel, IntroducerReadOnlyBanner } from "./LandlordInvite";
 
 function Status({ tone, children }: { tone: "green" | "amber" | "grey" | "red"; children: React.ReactNode }) {
   return <span className={`status ${tone}`}>{children}</span>;
@@ -108,6 +109,7 @@ export function PropertyDetailModal({
   onMarkWorkItemComplete, signOffStatus, onRequestSignOff, onApproveSignOff, onRaiseSnagging,
   onMarkDocOnFile, onReleaseAllDocs, onFlagDocIssue, onConfirmCompliance,
   onInstructSolicitors, onMarkLeaseSigned,
+  partnerReadOnly, isIntroducerHere, onInviteLandlord,
 }: {
   role: "bbc" | "partner" | "provider";
   property: PropertyRecord;
@@ -150,6 +152,13 @@ export function PropertyDetailModal({
   onConfirmCompliance?: () => void;
   onInstructSolicitors?: () => void;
   onMarkLeaseSigned?: () => void;
+  /** true if the current partner persona is an introducer who has been
+   *  superseded by an invited landlord on this specific property */
+  partnerReadOnly?: boolean;
+  /** true if the current partner persona is the introducer who submitted
+   *  THIS property and no landlord has joined yet — only they can invite one */
+  isIntroducerHere?: boolean;
+  onInviteLandlord?: (name: string, email: string, phone: string) => void;
   }) {
   const p = property;
   const providerLabel = providerName || "Care provider";
@@ -196,6 +205,10 @@ export function PropertyDetailModal({
           </div>
           <div className="property-art"><span style={{ fontSize: 42 }}>⌂</span></div>
         </div>
+
+        {role === "partner" && partnerReadOnly && p.ownership.kind === "introducer" && p.ownership.landlordAccountId && (
+          <IntroducerReadOnlyBanner landlordName={partnerLabel} />
+        )}
 
         {p.description && <div className="modal-section"><h3>About this property</h3><p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.7 }}>{p.description}</p></div>}
 
@@ -317,9 +330,13 @@ export function PropertyDetailModal({
             onCounter={onCounterOffer}
             onReject={onRejectOffer}
             onWithdraw={onWithdrawOffer}
+            readOnly={partnerReadOnly}
           />
         )}
-        {p.status === "Heads of terms" && onPublishHoT && onAcceptHoT && onCounterHoT && (
+        {p.status === "Heads of terms" && p.ownership.kind === "introducer" && !p.ownership.landlordAccountId && onInviteLandlord && (
+          <InviteLandlordPanel role={role} isIntroducerHere={!!isIntroducerHere} propertyName={p.name || "this property"} onInvite={onInviteLandlord} />
+        )}
+        {p.status === "Heads of terms" && !(p.ownership.kind === "introducer" && !p.ownership.landlordAccountId) && onPublishHoT && onAcceptHoT && onCounterHoT && (
           <HeadsOfTermsStep
             role={role}
             hot={p.headsOfTerms}
@@ -331,6 +348,7 @@ export function PropertyDetailModal({
             onPublish={onPublishHoT}
             onAccept={onAcceptHoT}
             onCounter={onCounterHoT}
+            readOnly={partnerReadOnly}
           />
         )}
         {p.status === "Works" && onMarkWorkItemComplete && (
@@ -357,6 +375,7 @@ export function PropertyDetailModal({
             onReleaseAll={onReleaseAllDocs}
             onFlagIssue={onFlagDocIssue}
             onConfirm={onConfirmCompliance}
+            readOnly={partnerReadOnly}
           />
         )}
         {p.status === "Lease" && onInstructSolicitors && onMarkLeaseSigned && (

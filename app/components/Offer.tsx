@@ -74,7 +74,7 @@ function OfferHistory({ offers, myRole }: { offers: OfferRound[]; myRole: "provi
 --------------------------------------------------------------------------- */
 
 export function OfferStep({
-  role, offers, onSubmitOffer, onAccept, onCounter, onReject, onWithdraw,
+  role, offers, onSubmitOffer, onAccept, onCounter, onReject, onWithdraw, readOnly,
 }: {
   role: "provider" | "partner" | "bbc";
   offers: OfferRound[];
@@ -83,6 +83,9 @@ export function OfferStep({
   onCounter: (rent: string, leaseLength: string, message: string) => void;
   onReject: (message: string) => void;
   onWithdraw: () => void;
+  /** true if the current partner persona is an introducer who no longer has
+   *  the active landlord relationship on this property */
+  readOnly?: boolean;
 }) {
   const [countering, setCountering] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -116,12 +119,15 @@ export function OfferStep({
       )}
 
       {/* Partner responding to the provider's live offer */}
-      {role === "partner" && myTurn && !countering && !rejecting && (
+      {role === "partner" && myTurn && !readOnly && !countering && !rejecting && (
         <div className="form-actions" style={{ padding: "0", borderTop: "none" }}>
           <button className="secondary" style={{ color: "#c23b3b" }} onClick={() => setRejecting(true)}>Reject</button>
           <button className="secondary" onClick={() => setCountering(true)}>Counter</button>
           <button className="primary" onClick={onAccept}>Accept</button>
         </div>
+      )}
+      {role === "partner" && myTurn && readOnly && (
+        <p style={{ fontSize: 12, color: "var(--muted)" }}>The landlord needs to respond to this.</p>
       )}
 
       {/* Provider responding to the partner's counter */}
